@@ -3,21 +3,24 @@ from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 
-# ==========================================
+# ==========================
 # JWT Configuration
-# ==========================================
+# ==========================
 
-SECRET_KEY = "viralforge-ai-secret-key-change-in-production"
+SECRET_KEY = "viralforge-super-secret-key-change-this-in-production"
+
 ALGORITHM = "HS256"
+
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 Days
 
-# ==========================================
+
+# ==========================
 # Password Hashing
-# ==========================================
+# ==========================
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
-    deprecated="auto"
+    deprecated="auto",
 )
 
 
@@ -35,9 +38,9 @@ def verify_password(
     )
 
 
-# ==========================================
+# ==========================
 # JWT Token
-# ==========================================
+# ==========================
 
 def create_access_token(data: dict):
 
@@ -48,14 +51,18 @@ def create_access_token(data: dict):
     )
 
     to_encode.update(
-        {"exp": expire}
+        {
+            "exp": expire
+        }
     )
 
-    return jwt.encode(
+    token = jwt.encode(
         to_encode,
         SECRET_KEY,
         algorithm=ALGORITHM,
     )
+
+    return token
 
 
 def decode_access_token(token: str):
