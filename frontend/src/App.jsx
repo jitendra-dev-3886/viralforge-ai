@@ -3,8 +3,9 @@ import Home from "./pages/home/Home";
 import Login from "./pages/auth/Login";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Register from "./pages/auth/Register";
-import AIGenerator from "./pages/ai/AIGenerator";
+import AIStudio from "./pages/ai/AIStudio";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import Templates from "./pages/ai/Templates";
 
 
 
@@ -42,9 +43,14 @@ function App(){
                 />
 
                 <Route
-                    path="/ai-generator"
-                    element={<AIGenerator />}
+                    path="/templates"
+                    element={<Templates />}
                 />
+
+                <Route
+    path="ai-studio"
+    element={<AIStudio />}
+/>
 
             </Routes>
 

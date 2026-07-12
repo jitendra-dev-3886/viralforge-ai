@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.api.auth import router as auth_router
+from app.api.ai import router as ai_router
 
 # Create Database Tables
 Base.metadata.create_all(bind=engine)
@@ -12,7 +13,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ==========================
 # CORS
+# ==========================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -23,10 +26,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
+# ==========================
+# API Routes
+# ==========================
 app.include_router(auth_router)
+app.include_router(ai_router)
 
-
+# ==========================
+# Root
+# ==========================
 @app.get("/")
 def root():
     return {
@@ -34,7 +42,9 @@ def root():
         "message": "Welcome to ViralForge AI API",
     }
 
-
+# ==========================
+# Health Check
+# ==========================
 @app.get("/health")
 def health():
     return {

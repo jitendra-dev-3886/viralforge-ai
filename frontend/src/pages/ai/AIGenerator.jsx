@@ -1,212 +1,158 @@
+import { useParams } from "react-router-dom";
+import templates from "../../data/templates";
 import { useState } from "react";
-import {
-    Sparkles,
-    Wand2,
-    Languages,
-    FileText,
-    Copy,
-    Download,
-    RotateCcw
-} from "lucide-react";
 
 export default function AIGenerator() {
 
-    const [contentType, setContentType] = useState("instagram");
-    const [tone, setTone] = useState("professional");
-    const [language, setLanguage] = useState("English");
+    const { template } = useParams();
+
+    const currentTemplate = templates.find(
+        item => item.id === template
+    );
+
     const [prompt, setPrompt] = useState("");
+
+    const [result, setResult] = useState("");
+
+    const [loading, setLoading] = useState(false);
+
+    const handleGenerate = () => {
+
+        setLoading(true);
+
+        // Backend integration later
+
+        setTimeout(() => {
+
+            setResult(
+                "AI response will appear here..."
+            );
+
+            setLoading(false);
+
+        },1000);
+
+    };
+
+    if(!currentTemplate){
+
+        return(
+
+            <div className="p-10">
+
+                Template Not Found
+
+            </div>
+
+        );
+
+    }
 
     return (
 
-        <div className="min-h-screen bg-slate-100 p-8">
+        <div className="min-h-screen bg-slate-100">
 
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto p-10">
 
-                {/* Header */}
+                <div>
 
-                <div className="flex justify-between items-center mb-8">
+                    <div className="text-6xl">
 
-                    <div>
-
-                        <h1 className="text-4xl font-bold text-slate-900">
-                            AI Content Generator
-                        </h1>
-
-                        <p className="text-slate-500 mt-2">
-                            Generate high-quality AI content for every platform.
-                        </p>
+                        {currentTemplate.icon}
 
                     </div>
 
-                    <div className="bg-white rounded-xl shadow px-6 py-4">
+                    <h1 className="text-4xl font-bold mt-5">
 
-                        <p className="text-sm text-slate-500">
-                            Credits Remaining
-                        </p>
+                        {currentTemplate.title}
 
-                        <h2 className="text-3xl font-bold text-blue-600">
-                            985
-                        </h2>
+                    </h1>
 
-                    </div>
+                    <p className="text-slate-500 mt-3">
+
+                        {currentTemplate.description}
+
+                    </p>
 
                 </div>
 
-                <div className="grid lg:grid-cols-3 gap-8">
+                <div className="grid lg:grid-cols-2 gap-8 mt-10">
 
-                    {/* Left */}
+                    {/* LEFT */}
 
-                    <div className="lg:col-span-1">
+                    <div className="bg-white rounded-2xl shadow p-8">
 
-                        <div className="bg-white rounded-2xl shadow p-6">
+                        <h2 className="text-xl font-bold">
 
-                            <h3 className="text-xl font-semibold mb-6">
-                                Content Settings
-                            </h3>
+                            Prompt
 
-                            <label className="font-medium">
-                                Template
-                            </label>
+                        </h2>
 
-                            <select
-                                className="w-full mt-2 border rounded-xl p-3"
-                                value={contentType}
-                                onChange={(e)=>setContentType(e.target.value)}
-                            >
+                        <textarea
 
-                                <option value="instagram">Instagram Caption</option>
-                                <option value="facebook">Facebook Post</option>
-                                <option value="linkedin">LinkedIn Post</option>
-                                <option value="twitter">X (Twitter)</option>
-                                <option value="blog">Blog Article</option>
-                                <option value="youtube">YouTube Script</option>
-                                <option value="reel">Reel Script</option>
+                            rows={12}
 
-                            </select>
+                            value={prompt}
 
-                            <label className="font-medium mt-6 block">
-                                Tone
-                            </label>
+                            onChange={(e)=>
+                                setPrompt(e.target.value)
+                            }
 
-                            <select
-                                className="w-full mt-2 border rounded-xl p-3"
-                                value={tone}
-                                onChange={(e)=>setTone(e.target.value)}
-                            >
+                            className="w-full border rounded-xl p-4 mt-5"
 
-                                <option>Professional</option>
-                                <option>Funny</option>
-                                <option>Friendly</option>
-                                <option>Luxury</option>
-                                <option>Sales</option>
+                            placeholder="Describe what you want AI to generate..."
 
-                            </select>
+                        />
 
-                            <label className="font-medium mt-6 block">
-                                Language
-                            </label>
+                        <button
 
-                            <select
-                                className="w-full mt-2 border rounded-xl p-3"
-                                value={language}
-                                onChange={(e)=>setLanguage(e.target.value)}
-                            >
+                            onClick={handleGenerate}
 
-                                <option>English</option>
-                                <option>Hindi</option>
+                            className="mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3"
 
-                            </select>
+                        >
 
-                        </div>
+                            {
+
+                                loading
+
+                                ?
+
+                                "Generating..."
+
+                                :
+
+                                "Generate"
+
+                            }
+
+                        </button>
 
                     </div>
 
-                    {/* Right */}
+                    {/* RIGHT */}
 
-                    <div className="lg:col-span-2">
+                    <div className="bg-white rounded-2xl shadow p-8">
 
-                        <div className="bg-white rounded-2xl shadow p-6">
+                        <div className="flex justify-between">
 
-                            <label className="font-semibold">
+                            <h2 className="text-xl font-bold">
 
-                                Describe your content
+                                AI Output
 
-                            </label>
-
-                            <textarea
-
-                                rows="8"
-
-                                value={prompt}
-
-                                onChange={(e)=>setPrompt(e.target.value)}
-
-                                className="w-full mt-3 border rounded-xl p-4"
-
-                                placeholder="Example:
-Write an Instagram caption for a digital marketing agency launching an AI content tool."
-
-                            />
-
-                            <button
-
-                                className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl flex items-center gap-3"
-
-                            >
-
-                                <Sparkles size={20}/>
-
-                                Generate Content
-
-                            </button>
+                            </h2>
 
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow p-6 mt-8">
+                        <div className="mt-5 border rounded-xl min-h-[400px] p-5 whitespace-pre-wrap">
 
-                            <div className="flex justify-between items-center mb-5">
+                            {
 
-                                <h3 className="text-xl font-semibold">
+                                result ||
 
-                                    Generated Content
+                                "Generated content will appear here."
 
-                                </h3>
-
-                                <div className="flex gap-3">
-
-                                    <button className="border rounded-lg px-4 py-2 flex items-center gap-2">
-
-                                        <Copy size={16}/>
-
-                                        Copy
-
-                                    </button>
-
-                                    <button className="border rounded-lg px-4 py-2 flex items-center gap-2">
-
-                                        <Download size={16}/>
-
-                                        Download
-
-                                    </button>
-
-                                    <button className="border rounded-lg px-4 py-2 flex items-center gap-2">
-
-                                        <RotateCcw size={16}/>
-
-                                        Regenerate
-
-                                    </button>
-
-                                </div>
-
-                            </div>
-
-                            <div className="min-h-[300px] bg-slate-50 rounded-xl border p-5 text-slate-500">
-
-                                Your generated content will appear here...
-
-                            </div>
+                            }
 
                         </div>
 

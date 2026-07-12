@@ -72,13 +72,20 @@ export default function Dashboard() {
             Dashboard
           </Link>
 
-          <Link
-            to="/ai-generator"
+          {/* <Link
+            to="/templates"
             className="flex items-center gap-3 hover:bg-slate-800 rounded-xl px-4 py-3"
           >
             <Wand2 size={20} />
             AI Generator
-          </Link>
+          </Link> */}
+          <Link
+    to="/ai-studio"
+    className="flex items-center gap-3 hover:bg-slate-800 rounded-xl px-4 py-3"
+>
+    <Wand2 size={20} />
+    AI Studio
+</Link>
 
           <Link
             to="/brands"
