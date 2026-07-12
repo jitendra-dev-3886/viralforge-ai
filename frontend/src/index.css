@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 html,
 body,
 #root {
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
+    width:100%;
+    min-height:100%;
+    margin:0;
 }
 
+
 body {
-  font-family: Inter, system-ui, sans-serif;
-  background: #f8fafc;
+    font-family: Inter, system-ui, sans-serif;
 }
