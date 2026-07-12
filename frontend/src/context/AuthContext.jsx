@@ -1,4 +1,4 @@
-import { createContext, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 
 export const AuthContext = createContext();
 
@@ -8,11 +8,21 @@ export function AuthProvider({ children }) {
         JSON.parse(localStorage.getItem("user")) || null
     );
 
-    const login = (userData, token) => {
+    const [token, setToken] = useState(
+        localStorage.getItem("token") || null
+    );
+
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        setLoading(false);
+    }, []);
+
+    const login = (userData, accessToken) => {
 
         localStorage.setItem(
             "token",
-            token
+            accessToken
         );
 
         localStorage.setItem(
@@ -20,28 +30,36 @@ export function AuthProvider({ children }) {
             JSON.stringify(userData)
         );
 
+        setToken(accessToken);
         setUser(userData);
     };
-
 
     const logout = () => {
 
         localStorage.removeItem("token");
         localStorage.removeItem("user");
 
+        setToken(null);
         setUser(null);
     };
 
-
     return (
+
         <AuthContext.Provider
             value={{
                 user,
+                token,
+                loading,
                 login,
-                logout
+                logout,
+                isAuthenticated: !!token,
             }}
         >
+
             {children}
+
         </AuthContext.Provider>
+
     );
+
 }

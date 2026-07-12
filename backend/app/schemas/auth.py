@@ -53,3 +53,10 @@ class RegisterResponse(BaseModel):
     success: bool
     message: str
     user: UserResponse
+
+# ------------------------
+# Forgot Pass Response
+# ------------------------
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr

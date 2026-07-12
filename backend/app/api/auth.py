@@ -8,6 +8,8 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import AuthService
 
+from app.schemas.auth import ForgotPasswordRequest
+
 router = APIRouter(
     prefix="/api/auth",
     tags=["Authentication"],
@@ -34,3 +36,18 @@ def login(
         db=db,
         request=request,
     )
+
+@router.post("/logout")
+def logout():
+    return AuthService.logout() 
+
+@router.post("/forgot-password")
+def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+
+    return AuthService.forgot_password(
+        db,
+        request.email,
+    )   

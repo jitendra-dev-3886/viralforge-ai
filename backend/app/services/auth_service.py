@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
 
+from secrets import token_urlsafe
+from datetime import datetime, timedelta
+
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, LoginRequest
 from app.core.security import (
@@ -78,4 +81,41 @@ class AuthService:
             "message": "Login successful.",
             "token": token,
             "user": user,
+        }
+
+    @staticmethod
+    def logout():
+
+        return {
+            "success": True,
+            "message": "Logout successful."
+        }
+
+    @staticmethod
+    def forgot_password(db: Session, email: str):
+
+        user = (
+            db.query(User)
+            .filter(User.email == email)
+            .first()
+        )
+
+        if user:
+
+            token = token_urlsafe(32)
+
+            user.reset_token = token
+
+            user.reset_token_expiry = (
+                datetime.utcnow() + timedelta(hours=1)
+            )
+
+            db.commit()
+
+            # TODO:
+            # Send reset email here
+
+        return {
+            "success": True,
+            "message": "If the email exists, a password reset link has been sent."
         }
