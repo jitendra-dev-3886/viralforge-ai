@@ -24,4 +24,6 @@ dist-ssr
 *.sw?
 frontend/.env
 frontend/node_modules
-backend/*.venv
+__pycache__/
+venv/
+dist/

@@ -6,6 +6,9 @@ import TrendingTopics from "./TrendingTopics";
 import PackageSelector from "./PackageSelector";
 import GenerateButton from "./GenerateButton";
 import PreviewPanel from "./PreviewPanel";
+import PlatformSelector from "./PlatformSelector";
+import ContentTypeSelector from "./ContentTypeSelector";
+import SummaryPanel from "./SummaryPanel";
 
 export default function AIStudio() {
 
@@ -19,47 +22,68 @@ export default function AIStudio() {
 
     const [generatedContent, setGeneratedContent] = useState(null);
 
-    const handleGenerate = async () => {
+    const [selectedPlatforms, setSelectedPlatforms] = useState([]);
+    const [selectedContent, setSelectedContent] = useState([]);
 
-        if (!selectedNiche) {
-            alert("Please select a niche.");
-            return;
-        }
+   const handleGenerate = async () => {
 
-        if (!selectedTopic) {
-            alert("Please select a topic.");
-            return;
-        }
+    if (selectedPlatforms.length === 0) {
+        alert("Please select at least one platform.");
+        return;
+    }
 
-        setLoading(true);
+    if (selectedContent.length === 0) {
+        alert("Please select at least one content type.");
+        return;
+    }
 
-        try {
+    if (!selectedNiche) {
+        alert("Please select a niche.");
+        return;
+    }
 
-            const response = await generateContent({
+    if (!selectedTopic.trim()) {
+        alert("Please select or enter a topic.");
+        return;
+    }
 
-                niche: selectedNiche,
+    setLoading(true);
 
-                topic: selectedTopic,
+    try {
 
-                package: selectedPackage,
+        const payload = {
 
-            });
+            platforms: selectedPlatforms,
 
-            setGeneratedContent(response);
+            content_types: selectedContent,
 
-        } catch (error) {
+            niche: selectedNiche,
 
-            console.error(error);
+            topic: selectedTopic,
 
-            alert("Failed to generate content.");
+            package: selectedPackage,
 
-        } finally {
+        };
 
-            setLoading(false);
+        console.log(payload);
 
-        }
+        const response = await generateContent(payload);
 
-    };
+        setGeneratedContent(response);
+
+    } catch (err) {
+
+        console.log(err);
+
+        alert("Generation failed.");
+
+    } finally {
+
+        setLoading(false);
+
+    }
+
+};
 
     return (
 
@@ -68,6 +92,18 @@ export default function AIStudio() {
             <h1 className="text-3xl font-bold mb-8">
                 AI Studio
             </h1>
+
+              {/* 1️⃣ Platform */}
+        <PlatformSelector
+            selected={selectedPlatforms}
+            onChange={setSelectedPlatforms}
+        />
+
+        <ContentTypeSelector
+            selectedPlatforms={selectedPlatforms}
+            selectedContent={selectedContent}
+            onChange={setSelectedContent}
+        />
 
             <NicheSelector
                 selected={selectedNiche}
@@ -91,6 +127,13 @@ export default function AIStudio() {
                 onChange={setSelectedPackage}
             />
 
+            <SummaryPanel
+                platforms={selectedPlatforms}
+                contents={selectedContent}
+                niche={selectedNiche}
+                topic={selectedTopic}
+                packageType={selectedPackage}
+            />
             <GenerateButton
                 loading={loading}
                 onGenerate={handleGenerate}
