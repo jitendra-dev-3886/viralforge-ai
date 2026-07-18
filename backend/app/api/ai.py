@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.schemas.ai import GenerateContentRequest
+from app.schemas.ai import GenerateRequest
 from app.services.ai_service import AIService
 
 router = APIRouter(
@@ -10,6 +10,5 @@ router = APIRouter(
 
 
 @router.post("/generate")
-def generate(request: GenerateContentRequest):
-
+def generate(request: GenerateRequest):
     return AIService.generate(request)

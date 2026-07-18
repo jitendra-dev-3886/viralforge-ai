@@ -1,28 +1,37 @@
+import traceback
+
+from app.core.openai_client import OpenAIClient
+from app.services.prompt_engine import PromptEngine
+
+
 class AIService:
 
     @staticmethod
     def generate(request):
 
-        return {
+        try:
 
-            "success": True,
+            prompt = PromptEngine.build(request)
 
-            "title": "Demo AI Content",
+            print("=" * 80)
+            print(prompt)
+            print("=" * 80)
 
-            "niche": request.niche,
+            ai_text = OpenAIClient.generate(prompt)
 
-            "topic": request.topic,
+            print("AI RESPONSE:")
+            print(ai_text)
 
-            "package": request.package,
+            return {
+                "success": True,
+                "data": ai_text
+            }
 
-            "quote": "Success begins with one decision.",
+        except Exception as e:
 
-            "caption": "This is AI generated caption.",
+            traceback.print_exc()
 
-            "hashtags": [
-                "#viral",
-                "#motivation",
-                "#ai"
-            ]
-
-        }
+            return {
+                "success": False,
+                "error": str(e)
+            }

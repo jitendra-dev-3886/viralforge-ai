@@ -1,14 +1,11 @@
 import {
     Sparkles,
-    Quote,
-    FileText,
-    Hash,
     Copy,
 } from "lucide-react";
 
 export default function PreviewPanel({ data }) {
 
-    if (!data) {
+    if (!data || !data.data) {
 
         return (
 
@@ -20,22 +17,11 @@ export default function PreviewPanel({ data }) {
                 />
 
                 <h2 className="text-3xl font-bold mt-6">
-
                     AI Content Preview
-
                 </h2>
 
                 <p className="text-gray-500 mt-4">
-
-                    Select your niche, choose a topic,
-                    select a package and click
-
-                    <span className="font-semibold text-blue-600">
-
-                        {" "}Generate AI Content
-
-                    </span>
-
+                    Generate content to preview results.
                 </p>
 
             </div>
@@ -46,141 +32,130 @@ export default function PreviewPanel({ data }) {
 
     return (
 
-        <div className="mt-10 space-y-6">
+        <div className="space-y-8 mt-8">
 
-            {/* Header */}
+            {data.data.map((platform) => (
 
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-6">
-
-                <h2 className="text-3xl font-bold">
-
-                    {data.title}
-
-                </h2>
-
-                <p className="mt-3">
-
-                    Niche : {data.niche}
-
-                </p>
-
-                <p>
-
-                    Topic : {data.topic}
-
-                </p>
-
-                <p>
-
-                    Package : {data.package}
-
-                </p>
-
-            </div>
-
-            {/* Quote */}
-
-            <div className="bg-white rounded-2xl shadow p-6">
-
-                <div className="flex items-center gap-3 mb-4">
-
-                    <Quote size={24} />
-
-                    <h3 className="text-xl font-bold">
-
-                        Quote
-
-                    </h3>
-
-                </div>
-
-                <p className="text-gray-700">
-
-                    {data.quote}
-
-                </p>
-
-            </div>
-
-            {/* Caption */}
-
-            <div className="bg-white rounded-2xl shadow p-6">
-
-                <div className="flex items-center gap-3 mb-4">
-
-                    <FileText size={24} />
-
-                    <h3 className="text-xl font-bold">
-
-                        Caption
-
-                    </h3>
-
-                </div>
-
-                <p>
-
-                    {data.caption}
-
-                </p>
-
-            </div>
-
-            {/* Hashtags */}
-
-            <div className="bg-white rounded-2xl shadow p-6">
-
-                <div className="flex items-center gap-3 mb-4">
-
-                    <Hash size={24} />
-
-                    <h3 className="text-xl font-bold">
-
-                        Hashtags
-
-                    </h3>
-
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-
-                    <span className="bg-blue-100 px-3 py-1 rounded-full">
-
-                        #viral
-
-                    </span>
-
-                    <span className="bg-blue-100 px-3 py-1 rounded-full">
-
-                        #motivation
-
-                    </span>
-
-                    <span className="bg-blue-100 px-3 py-1 rounded-full">
-
-                        #ai
-
-                    </span>
-
-                </div>
-
-            </div>
-
-            {/* Copy */}
-
-            <div className="text-right">
-
-                <button
-                    className="bg-blue-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 ml-auto"
+                <div
+                    key={platform.platform}
+                    className="bg-white rounded-3xl shadow-lg p-8"
                 >
 
-                    <Copy size={18} />
+                    <h2 className="text-3xl font-bold capitalize text-indigo-600 mb-8">
 
-                    Copy Content
+                        {platform.platform}
 
-                </button>
+                    </h2>
 
-            </div>
+                    {platform.contents.map((content, index) => (
+
+                        <div
+                            key={index}
+                            className="border rounded-2xl p-6 mb-6 bg-slate-50"
+                        >
+
+                            <h3 className="text-xl font-bold capitalize mb-6">
+
+                                {content.type}
+
+                            </h3>
+
+                            <div className="space-y-5">
+
+                                <div>
+
+                                    <strong>Title</strong>
+
+                                    <p>{content.title}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Hook</strong>
+
+                                    <p>{content.hook}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Script</strong>
+
+                                    <p>{content.script}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Caption</strong>
+
+                                    <p>{content.caption}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Hashtags</strong>
+
+                                    <div className="flex flex-wrap gap-2 mt-2">
+
+                                        {content.hashtags.map((tag) => (
+
+                                            <span
+                                                key={tag}
+                                                className="bg-indigo-100 px-3 py-1 rounded-full text-sm"
+                                            >
+                                                {tag}
+                                            </span>
+
+                                        ))}
+
+                                    </div>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Image Prompt</strong>
+
+                                    <p>{content.image_prompt}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Video Prompt</strong>
+
+                                    <p>{content.video_prompt}</p>
+
+                                </div>
+
+                                <div>
+
+                                    <strong>Voiceover</strong>
+
+                                    <p>{content.voiceover}</p>
+
+                                </div>
+
+                            </div>
+
+                            <button className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl flex items-center gap-2">
+
+                                <Copy size={18} />
+
+                                Copy Content
+
+                            </button>
+
+                        </div>
+
+                    ))}
+
+                </div>
+
+            ))}
 
         </div>
 
