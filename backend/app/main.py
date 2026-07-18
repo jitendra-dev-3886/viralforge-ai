@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.api.auth import router as auth_router
 from app.api.ai import router as ai_router
+from app.api.trends import router as trend_router
 
 # Create Database Tables
 Base.metadata.create_all(bind=engine)
@@ -31,6 +32,7 @@ app.add_middleware(
 # ==========================
 app.include_router(auth_router)
 app.include_router(ai_router)
+app.include_router(trend_router)
 
 # ==========================
 # Root

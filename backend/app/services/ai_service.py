@@ -1,7 +1,8 @@
 import traceback
 
-from app.core.openai_client import OpenAIClient
 from app.services.prompt_engine import PromptEngine
+from app.core.gemini_client import GeminiClient
+
 
 
 class AIService:
@@ -17,7 +18,7 @@ class AIService:
             print(prompt)
             print("=" * 80)
 
-            ai_text = OpenAIClient.generate(prompt)
+            ai_text = GeminiClient.generate(prompt)
 
             print("AI RESPONSE:")
             print(ai_text)

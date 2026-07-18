@@ -1,70 +1,38 @@
+from app.providers.youtube_trends import YoutubeProvider
+from app.providers.news_provider import NewsProvider
+from app.providers.rss_provider import RSSProvider
+from app.providers.trend_ai_ranker import TrendAIRanker
+
+
 class TrendService:
 
     @staticmethod
-    def get_topics(niche: str):
+    def get_trending():
 
-        topics = {
+        trends = []
 
-            "Morning Spiritual": [
+        try:
+            print("Loading YouTube...")
+            trends.extend(YoutubeProvider().get_trending())
+        except Exception as e:
+            print("YouTube Error:", e)
 
-                "Morning Gratitude",
+        try:
+            print("Loading News...")
+            trends.extend(NewsProvider().get_trending())
+        except Exception as e:
+            print("News Error:", e)
 
-                "Power of Prayer",
+        try:
+            print("Loading RSS...")
+            trends.extend(RSSProvider().get_trending())
+        except Exception as e:
+            print("RSS Error:", e)
 
-                "Start Your Day with Positivity",
+        print(f"Collected Topics: {len(trends)}")
 
-                "Inner Peace"
+        trends = list(dict.fromkeys(trends))
 
-            ],
+        print(f"Unique Topics: {len(trends)}")
 
-            "Financial Freedom": [
-
-                "Why Rich Stay Rich",
-
-                "Money Habits",
-
-                "Passive Income",
-
-                "Financial Discipline"
-
-            ],
-
-            "Cosmic Knowledge": [
-
-                "Dark Matter",
-
-                "Parallel Universe",
-
-                "Black Hole Mystery",
-
-                "Time Travel"
-
-            ],
-
-            "Psychology": [
-
-                "Halo Effect",
-
-                "Silent People",
-
-                "Human Behavior",
-
-                "Overthinking"
-
-            ],
-
-            "Love & Romantic": [
-
-                "True Love",
-
-                "Soulmate",
-
-                "Long Distance Love",
-
-                "Love Psychology"
-
-            ]
-
-        }
-
-        return topics.get(niche, [])
+        return TrendAIRanker.rank(trends)
