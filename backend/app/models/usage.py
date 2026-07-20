@@ -2,7 +2,6 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Boolean,
     ForeignKey,
     DateTime,
 )
@@ -13,9 +12,9 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class ApiSetting(Base):
+class Usage(Base):
 
-    __tablename__ = "api_settings"
+    __tablename__ = "usage"
 
     id = Column(
         Integer,
@@ -30,35 +29,44 @@ class ApiSetting(Base):
         index=True,
     )
 
+    feature = Column(
+        String(100),
+        nullable=False,
+    )
+
     provider = Column(
         String(50),
-        nullable=False,
-    )
-
-    api_key = Column(
-        String(1000),
-        nullable=False,
-    )
-
-    api_secret = Column(
-        String(1000),
         nullable=True,
     )
 
-    is_active = Column(
-        Boolean,
-        default=True,
+    model = Column(
+        String(100),
+        nullable=True,
+    )
+
+    credits_used = Column(
+        Integer,
+        default=0,
+    )
+
+    requests = Column(
+        Integer,
+        default=1,
+    )
+
+    tokens = Column(
+        Integer,
+        default=0,
+    )
+
+    status = Column(
+        String(20),
+        default="success",
     )
 
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
-    )
-
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
     )
 
     # =====================================
@@ -67,5 +75,5 @@ class ApiSetting(Base):
 
     user = relationship(
         "User",
-        back_populates="api_settings",
+        back_populates="usage",
     )

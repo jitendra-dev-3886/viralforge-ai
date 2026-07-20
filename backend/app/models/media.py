@@ -4,7 +4,7 @@ from sqlalchemy import (
     String,
     ForeignKey,
     DateTime,
-    Text,
+    BigInteger,
 )
 
 from sqlalchemy.orm import relationship
@@ -13,9 +13,9 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class Schedule(Base):
+class Media(Base):
 
-    __tablename__ = "schedules"
+    __tablename__ = "media"
 
     id = Column(
         Integer,
@@ -37,44 +37,69 @@ class Schedule(Base):
         index=True,
     )
 
-    platform = Column(
-        String(50),
+    media_type = Column(
+        String(30),
         nullable=False,
     )
 
-    account_name = Column(
+    provider = Column(
+        String(50),
+        nullable=True,
+    )
+
+    title = Column(
+        String(255),
+        nullable=True,
+    )
+
+    file_name = Column(
+        String(255),
+        nullable=False,
+    )
+
+    file_path = Column(
+        String(1000),
+        nullable=False,
+    )
+
+    file_url = Column(
+        String(1000),
+        nullable=True,
+    )
+
+    mime_type = Column(
         String(100),
         nullable=True,
     )
 
-    scheduled_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
+    extension = Column(
+        String(20),
+        nullable=True,
     )
 
-    timezone = Column(
-        String(100),
-        default="Asia/Kolkata",
+    duration = Column(
+        Integer,
+        nullable=True,
+    )
+
+    width = Column(
+        Integer,
+        nullable=True,
+    )
+
+    height = Column(
+        Integer,
+        nullable=True,
+    )
+
+    file_size = Column(
+        BigInteger,
+        nullable=True,
     )
 
     status = Column(
         String(30),
-        default="pending",
-    )
-
-    published_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    post_url = Column(
-        String(500),
-        nullable=True,
-    )
-
-    error_message = Column(
-        Text,
-        nullable=True,
+        default="ready",
     )
 
     created_at = Column(
@@ -92,12 +117,12 @@ class Schedule(Base):
     # Relationships
     # =====================================
 
-    # user = relationship(
-    #     "User",
-    #     back_populates="schedules",
-    # )
+    user = relationship(
+        "User",
+        back_populates="media",
+    )
 
     project = relationship(
         "Project",
-        back_populates="schedules",
+        back_populates="media",
     )

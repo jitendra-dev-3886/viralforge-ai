@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, ConfigDict
 
 
@@ -41,8 +43,8 @@ class UserResponse(BaseModel):
 class LoginResponse(BaseModel):
     success: bool
     message: str
-    token: str
-    user: UserResponse
+    token: Optional[str] = None
+    user: Optional[UserResponse] = None
 
 
 # ------------------------
@@ -52,7 +54,7 @@ class LoginResponse(BaseModel):
 class RegisterResponse(BaseModel):
     success: bool
     message: str
-    user: UserResponse
+    user: Optional[UserResponse] = None
 
 # ------------------------
 # Forgot Pass Response

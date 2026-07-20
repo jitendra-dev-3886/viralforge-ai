@@ -2,7 +2,6 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Text,
     ForeignKey,
     DateTime,
 )
@@ -13,9 +12,9 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class Brand(Base):
+class Trend(Base):
 
-    __tablename__ = "brands"
+    __tablename__ = "trends"
 
     id = Column(
         Integer,
@@ -30,44 +29,49 @@ class Brand(Base):
         index=True,
     )
 
-    name = Column(
-        String(150),
+    title = Column(
+        String(500),
         nullable=False,
     )
 
-    description = Column(
-        Text,
-        nullable=True,
+    score = Column(
+        Integer,
+        default=0,
     )
 
-    niche = Column(
+    category = Column(
         String(100),
         nullable=True,
     )
 
-    logo = Column(
-        String(500),
+    platform = Column(
+        String(50),
         nullable=True,
     )
 
-    primary_color = Column(
-        String(20),
+    content_type = Column(
+        String(50),
         nullable=True,
     )
 
-    secondary_color = Column(
-        String(20),
+    source = Column(
+        String(50),
         nullable=True,
     )
 
-    font = Column(
-        String(100),
-        nullable=True,
+    language = Column(
+        String(30),
+        default="English",
     )
 
-    website = Column(
-        String(255),
-        nullable=True,
+    country = Column(
+        String(10),
+        default="IN",
+    )
+
+    status = Column(
+        String(30),
+        default="active",
     )
 
     created_at = Column(
@@ -81,18 +85,11 @@ class Brand(Base):
         onupdate=func.now(),
     )
 
-    # ==========================
-    # Relationships
-    # ==========================
+    # =====================================
+    # Relationship
+    # =====================================
 
-    user = relationship(
-        "User",
-        back_populates="brands",
-    )
-
-    projects = relationship(
-        "Project",
-        back_populates="brand",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-    )
+    # user = relationship(
+    #     "User",
+    #     back_populates="trends",
+    # )

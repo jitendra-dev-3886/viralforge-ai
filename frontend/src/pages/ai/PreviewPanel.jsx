@@ -3,7 +3,9 @@ import {
     Copy,
 } from "lucide-react";
 
+
 export default function PreviewPanel({ data }) {
+
 
     if (!data || !data.data) {
 
@@ -30,118 +32,165 @@ export default function PreviewPanel({ data }) {
 
     }
 
+
+    const copyContent = (content) => {
+
+        const text = `
+Video:
+${content.video}
+
+
+Voiceover:
+${content.voiceover}
+
+
+Caption:
+${content.caption}
+
+
+Hashtags:
+${content.hashtags}
+        `;
+
+        navigator.clipboard.writeText(text);
+
+    };
+
+
     return (
 
         <div className="space-y-8 mt-8">
 
-            {data.data.map((platform) => (
+
+            {Object.entries(data.data).map(([platform, platformData]) => (
+
 
                 <div
-                    key={platform.platform}
+                    key={platform}
                     className="bg-white rounded-3xl shadow-lg p-8"
                 >
 
+
                     <h2 className="text-3xl font-bold capitalize text-indigo-600 mb-8">
 
-                        {platform.platform}
+                        {platform.replace("_", " ")}
 
                     </h2>
 
-                    {platform.contents.map((content, index) => (
+
+
+                    {Object.entries(platformData).map(([type, content]) => (
+
 
                         <div
-                            key={index}
+                            key={type}
                             className="border rounded-2xl p-6 mb-6 bg-slate-50"
                         >
 
+
                             <h3 className="text-xl font-bold capitalize mb-6">
 
-                                {content.type}
+                                {type}
 
                             </h3>
 
+
+
                             <div className="space-y-5">
 
+
                                 <div>
 
-                                    <strong>Title</strong>
+                                    <strong>
+                                        Video
+                                    </strong>
 
-                                    <p>{content.title}</p>
+                                    <p className="mt-2 text-gray-700">
+                                        {content.video}
+                                    </p>
 
                                 </div>
 
+
+
                                 <div>
 
-                                    <strong>Hook</strong>
+                                    <strong>
+                                        Voiceover
+                                    </strong>
 
-                                    <p>{content.hook}</p>
+                                    <p className="mt-2 text-gray-700">
+                                        {content.voiceover}
+                                    </p>
 
                                 </div>
 
+
+
+
                                 <div>
 
-                                    <strong>Script</strong>
+                                    <strong>
+                                        Caption
+                                    </strong>
 
-                                    <p>{content.script}</p>
+                                    <p className="mt-2 text-gray-700">
+                                        {content.caption}
+                                    </p>
 
                                 </div>
 
-                                <div>
 
-                                    <strong>Caption</strong>
 
-                                    <p>{content.caption}</p>
 
-                                </div>
 
                                 <div>
 
-                                    <strong>Hashtags</strong>
+                                    <strong>
+                                        Hashtags
+                                    </strong>
 
-                                    <div className="flex flex-wrap gap-2 mt-2">
 
-                                        {content.hashtags.map((tag) => (
+                                    <div className="flex flex-wrap gap-2 mt-3">
 
-                                            <span
-                                                key={tag}
-                                                className="bg-indigo-100 px-3 py-1 rounded-full text-sm"
-                                            >
-                                                {tag}
-                                            </span>
 
-                                        ))}
+                                        {content.hashtags
+                                            ?.split(" ")
+                                            .map((tag, index) => (
+
+
+                                                <span
+                                                    key={index}
+                                                    className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm"
+                                                >
+
+                                                    {tag}
+
+                                                </span>
+
+
+                                            ))}
+
 
                                     </div>
 
-                                </div>
-
-                                <div>
-
-                                    <strong>Image Prompt</strong>
-
-                                    <p>{content.image_prompt}</p>
 
                                 </div>
 
-                                <div>
 
-                                    <strong>Video Prompt</strong>
-
-                                    <p>{content.video_prompt}</p>
-
-                                </div>
-
-                                <div>
-
-                                    <strong>Voiceover</strong>
-
-                                    <p>{content.voiceover}</p>
-
-                                </div>
 
                             </div>
 
-                            <button className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl flex items-center gap-2">
+
+
+
+                            <button
+
+                                onClick={() => copyContent(content)}
+
+                                className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
+
+                            >
 
                                 <Copy size={18} />
 
@@ -149,13 +198,21 @@ export default function PreviewPanel({ data }) {
 
                             </button>
 
+
+
                         </div>
+
 
                     ))}
 
+
+
                 </div>
 
+
             ))}
+
+
 
         </div>
 

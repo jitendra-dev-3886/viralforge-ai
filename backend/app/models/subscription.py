@@ -2,9 +2,9 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
+    Boolean,
     ForeignKey,
     DateTime,
-    Text,
 )
 
 from sqlalchemy.orm import relationship
@@ -13,9 +13,9 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class Schedule(Base):
+class Subscription(Base):
 
-    __tablename__ = "schedules"
+    __tablename__ = "subscriptions"
 
     id = Column(
         Integer,
@@ -26,55 +26,69 @@ class Schedule(Base):
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
         nullable=False,
         index=True,
     )
 
-    project_id = Column(
-        Integer,
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-
-    platform = Column(
+    plan_name = Column(
         String(50),
-        nullable=False,
+        default="Free",
     )
 
-    account_name = Column(
-        String(100),
+    billing_cycle = Column(
+        String(20),
+        default="monthly",
+    )
+
+    amount = Column(
+        Integer,
+        default=0,
+    )
+
+    currency = Column(
+        String(10),
+        default="INR",
+    )
+
+    payment_provider = Column(
+        String(50),
         nullable=True,
     )
 
-    scheduled_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
+    payment_id = Column(
+        String(255),
+        nullable=True,
     )
 
-    timezone = Column(
-        String(100),
-        default="Asia/Kolkata",
+    order_id = Column(
+        String(255),
+        nullable=True,
+    )
+
+    subscription_id = Column(
+        String(255),
+        nullable=True,
     )
 
     status = Column(
         String(30),
-        default="pending",
+        default="active",
     )
 
-    published_at = Column(
+    starts_at = Column(
         DateTime(timezone=True),
         nullable=True,
     )
 
-    post_url = Column(
-        String(500),
+    expires_at = Column(
+        DateTime(timezone=True),
         nullable=True,
     )
 
-    error_message = Column(
-        Text,
-        nullable=True,
+    auto_renew = Column(
+        Boolean,
+        default=True,
     )
 
     created_at = Column(
@@ -89,15 +103,10 @@ class Schedule(Base):
     )
 
     # =====================================
-    # Relationships
+    # Relationship
     # =====================================
 
     # user = relationship(
     #     "User",
-    #     back_populates="schedules",
+    #     back_populates="subscription",
     # )
-
-    project = relationship(
-        "Project",
-        back_populates="schedules",
-    )

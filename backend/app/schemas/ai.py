@@ -1,15 +1,10 @@
 from pydantic import BaseModel
+from typing import List, Optional
 
-
-# class GenerateContentRequest(BaseModel):
-#     niche: str
-#     topic: str
-#     package: str
-
-from pydantic import BaseModel
-from typing import List
 
 class GenerateRequest(BaseModel):
+
+    project_id: int
 
     platforms: List[str]
 
@@ -20,3 +15,5 @@ class GenerateRequest(BaseModel):
     topic: str
 
     package: str
+
+    language: Optional[str] = "English"

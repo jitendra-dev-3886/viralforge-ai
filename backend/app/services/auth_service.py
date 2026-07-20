@@ -1,7 +1,7 @@
-from sqlalchemy.orm import Session
-
-from secrets import token_urlsafe
 from datetime import datetime, timedelta
+from secrets import token_urlsafe
+
+from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, LoginRequest
@@ -14,8 +14,15 @@ from app.core.security import (
 
 class AuthService:
 
+    # ============================================
+    # Register
+    # ============================================
+
     @staticmethod
     def register(db: Session, request: RegisterRequest):
+
+        print("========== REGISTER ==========")
+        print("STEP 1")
 
         existing_user = (
             db.query(User)
@@ -23,16 +30,18 @@ class AuthService:
             .first()
         )
 
+        print("STEP 2")
+
         if existing_user:
             return {
                 "success": False,
-                "message": "Email already exists.",
+                "message": "Email already registered."
             }
 
         user = User(
             name=request.name,
             email=request.email,
-            password=hash_password(request.password),
+            hashed_password=hash_password(request.password),
         )
 
         db.add(user)
@@ -42,8 +51,18 @@ class AuthService:
         return {
             "success": True,
             "message": "Registration successful.",
-            "user": user,
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+            }
         }
+
+    # ============================================
+    # Login
+    # ============================================
 
     @staticmethod
     def login(db: Session, request: LoginRequest):
@@ -57,19 +76,25 @@ class AuthService:
         if not user:
             return {
                 "success": False,
-                "message": "Invalid email or password.",
+                "message": "Invalid email or password."
             }
 
         if not verify_password(
             request.password,
-            user.password,
+            user.hashed_password,
         ):
             return {
                 "success": False,
-                "message": "Invalid email or password.",
+                "message": "Invalid email or password."
             }
 
-        token = create_access_token(
+        if not user.is_active:
+            return {
+                "success": False,
+                "message": "Account disabled."
+            }
+
+        access_token = create_access_token(
             {
                 "user_id": user.id,
                 "email": user.email,
@@ -79,9 +104,20 @@ class AuthService:
         return {
             "success": True,
             "message": "Login successful.",
-            "token": token,
-            "user": user,
+            "token": access_token,
+            "access_token": access_token,
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+            }
         }
+
+    # ============================================
+    # Logout
+    # ============================================
 
     @staticmethod
     def logout():
@@ -90,6 +126,10 @@ class AuthService:
             "success": True,
             "message": "Logout successful."
         }
+
+    # ============================================
+    # Forgot Password
+    # ============================================
 
     @staticmethod
     def forgot_password(db: Session, email: str):
@@ -105,17 +145,60 @@ class AuthService:
             token = token_urlsafe(32)
 
             user.reset_token = token
-
             user.reset_token_expiry = (
                 datetime.utcnow() + timedelta(hours=1)
             )
 
             db.commit()
 
-            # TODO:
-            # Send reset email here
+            # TODO
+            # Send Email
 
         return {
             "success": True,
-            "message": "If the email exists, a password reset link has been sent."
+            "message": "If the email exists, a reset link has been sent."
+        }
+
+    # ============================================
+    # Reset Password
+    # ============================================
+
+    @staticmethod
+    def reset_password(
+        db: Session,
+        token: str,
+        new_password: str,
+    ):
+
+        user = (
+            db.query(User)
+            .filter(User.reset_token == token)
+            .first()
+        )
+
+        if not user:
+            return {
+                "success": False,
+                "message": "Invalid reset token."
+            }
+
+        if (
+            user.reset_token_expiry is None
+            or user.reset_token_expiry < datetime.utcnow()
+        ):
+            return {
+                "success": False,
+                "message": "Reset token expired."
+            }
+
+        user.hashed_password = hash_password(new_password)
+
+        user.reset_token = None
+        user.reset_token_expiry = None
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Password reset successful."
         }

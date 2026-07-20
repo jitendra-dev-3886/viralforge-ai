@@ -8,29 +8,43 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 load_dotenv(BASE_DIR / ".env")
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
-
 
 class GroqClient:
 
-    @staticmethod
-    def generate(prompt: str) -> str:
-
-        response = client.chat.completions.create(
-
-            model="llama-3.3-70b-versatile",
-
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-
-            temperature=0.7,
-
+    def __init__(self):
+        self.client = Groq(
+            api_key=os.getenv("GROQ_API_KEY")
         )
 
-        return response.choices[0].message.content
+    def generate(self, prompt: str) -> str:
+
+        try:
+            response = self.client.chat.completions.create(
+
+                model="llama-3.3-70b-versatile",
+
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are ViralForge AI, "
+                            "an expert social media content creator."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+
+                temperature=0.7,
+                max_tokens=2000
+            )
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            raise Exception(f"Groq AI Error: {str(e)}")
+
+
+groq_client = GroqClient()
