@@ -1,0 +1,87 @@
+{
+    "title": "Unlock the Power of AI: Top 5 Tools",
+    "hook": "Revolutionize your workflow with the latest AI innovations",
+    "description": "Discover the top 5 AI tools that will transform your productivity and creativity",
+    "caption": "Stay ahead of the curve with the most advanced AI tools #AI #Productivity",
+    "hashtags": [
+        "#AI",
+        "#Productivity",
+        "#Innovation",
+        "#Technology",
+        "#FutureOfWork"
+    ],
+    "cta": "Learn more about these game-changing AI tools",
+    "seo_keywords": [
+        "AI tools",
+        "productivity",
+        "innovation",
+        "technology",
+        "future of work"
+    ],
+    "scenes": [
+        {
+            "scene": 1,
+            "text": "Introduction to AI tools",
+            "keyword": "robot coding",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 2,
+            "text": "Tool 1: AI-powered writing assistant",
+            "keyword": "writing desk",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 3,
+            "text": "Tool 2: AI-driven data analysis",
+            "keyword": "data visualization",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 4,
+            "text": "Tool 3: AI-based design platform",
+            "keyword": "graphic design",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 5,
+            "text": "Tool 4: AI-powered customer service",
+            "keyword": "customer support",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 6,
+            "text": "Tool 5: AI-driven project management",
+            "keyword": "project planning",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 7,
+            "text": "Conclusion: Unlock the full potential of AI",
+            "keyword": "space galaxy",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 8,
+            "text": "Call to action: Start using AI tools today",
+            "keyword": "business meeting",
+            "duration": 5,
+            "media_type": "image"
+        }
+    ],
+    "script": "Discover the top 5 AI tools that will transform your productivity and creativity",
+    "keywords": [
+        "AI tools",
+        "productivity",
+        "innovation",
+        "technology",
+        "future of work"
+    ]
+}

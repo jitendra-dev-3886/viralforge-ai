@@ -1,0 +1,101 @@
+{
+    "title": "Revolutionize Your Workflow with Top 5 AI Tools",
+    "hook": "Unlock the power of AI and transform your productivity",
+    "description": "Discover the top 5 AI tools that will change the way you work",
+    "caption": "Take your productivity to the next level with these game-changing AI tools",
+    "hashtags": [
+        "#AItools",
+        "#productivityhacks",
+        "#innovation",
+        "#tech",
+        "#artificialintelligence"
+    ],
+    "cta": "Try these AI tools now and revolutionize your workflow",
+    "seo_keywords": [
+        "AI tools",
+        "productivity",
+        "innovation",
+        "technology",
+        "artificial intelligence"
+    ],
+    "scenes": [
+        {
+            "scene": 1,
+            "text": "Introducing the top 5 AI tools",
+            "keyword": "robotic brain",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 2,
+            "text": "Tool #1: AI-powered project management",
+            "keyword": "business meeting",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 3,
+            "text": "Streamline your tasks with AI",
+            "keyword": "clock and calendar",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 4,
+            "text": "Tool #2: AI-driven content creation",
+            "keyword": "writing robot",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 5,
+            "text": "Create engaging content with AI",
+            "keyword": "social media icons",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 6,
+            "text": "Tool #3: AI-based data analysis",
+            "keyword": "data charts",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 7,
+            "text": "Make data-driven decisions with AI",
+            "keyword": "business analytics",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 8,
+            "text": "Tool #4: AI-powered customer service",
+            "keyword": "chatbot",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 9,
+            "text": "Provide 24/7 support with AI",
+            "keyword": "customer support",
+            "duration": 5,
+            "media_type": "image"
+        },
+        {
+            "scene": 10,
+            "text": "Tool #5: AI-driven cybersecurity",
+            "keyword": "cybersecurity shield",
+            "duration": 5,
+            "media_type": "image"
+        }
+    ],
+    "script": "Discover the top 5 AI tools that will change the way you work",
+    "keywords": [
+        "AI tools",
+        "productivity",
+        "innovation",
+        "technology",
+        "artificial intelligence"
+    ]
+}

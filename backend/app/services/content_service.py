@@ -1,154 +1,288 @@
-import logging
+from sqlalchemy.orm import Session
 
-from app.schemas.content import GeneratedContent
-
-
-logger = logging.getLogger(__name__)
+from app.models.content import Content
+from app.schemas.content import (
+    ContentCreate,
+    ContentUpdate,
+)
 
 
 class ContentService:
-    """
-    Responsible for transforming AI generated
-    output into production ready content object.
-    """
 
+    # ==========================================================
+    # Create Content
+    # ==========================================================
 
-    def create_content(
-        self,
-        trend: dict,
-        script_data: dict
-    ) -> GeneratedContent:
+    @staticmethod
+    def create(
+        db: Session,
+        request: ContentCreate,
+    ):
 
+        content = Content(
 
-        try:
+            user_id=request.user_id,
 
-            content = GeneratedContent(
+            project_id=request.project_id,
 
-                title=trend.get(
-                    "title",
-                    "Untitled"
-                ),
+            title=request.title,
 
-                category=trend.get(
-                    "category",
-                    "General"
-                ),
+            hook=request.hook,
 
-                platform=trend.get(
-                    "platform",
-                    "Unknown"
-                ),
+            script=request.script,
 
-                content_type=trend.get(
-                    "content_type",
-                    "Post"
-                ),
+            caption=request.caption,
 
-                score=trend.get(
-                    "score",
-                    0
-                ),
+            hashtags=request.hashtags,
 
-                hook=script_data.get(
-                    "hook"
-                ),
+            keywords=request.keywords,
 
-                script=script_data.get(
-                    "script"
-                ),
+            cta=request.cta,
 
-                caption=self.generate_caption(
-                    trend,
-                    script_data
-                ),
+            platform=request.platform,
 
-                hashtags=self.generate_hashtags(
-                    trend
-                ),
+            content_type=request.content_type,
 
-                status="draft"
+            language=request.language,
 
-            )
+            ai_provider=request.ai_provider,
 
+            ai_model=request.ai_model,
 
-            return content
+            prompt=request.prompt,
 
+            status="generated",
 
-        except Exception as e:
+        )
 
-            logger.exception(
-                "Content creation failed"
-            )
+        db.add(content)
 
-            raise e
+        db.commit()
 
+        db.refresh(content)
 
+        return {
+            "success": True,
+            "message": "Content created successfully.",
+            "content": content,
+        }
 
-    def generate_caption(
-        self,
-        trend,
-        script
+    # ==========================================================
+    # Get All Contents
+    # ==========================================================
+
+    @staticmethod
+    def get_all(
+        db: Session,
+        user_id: int,
     ):
 
         return (
-            f"{trend['title']}\n\n"
-            f"{script.get('hook','')}\n\n"
+            db.query(Content)
+            .filter(Content.user_id == user_id)
+            .order_by(Content.created_at.desc())
+            .all()
+        )
+
+    # ==========================================================
+    # Get By ID
+    # ==========================================================
+
+    @staticmethod
+    def get_by_id(
+        db: Session,
+        content_id: int,
+        user_id: int,
+    ):
+
+        return (
+            db.query(Content)
+            .filter(
+                Content.id == content_id,
+                Content.user_id == user_id,
+            )
+            .first()
+        )
+
+    # ==========================================================
+    # Get Project Contents
+    # ==========================================================
+
+    @staticmethod
+    def get_project_contents(
+        db: Session,
+        project_id: int,
+        user_id: int,
+    ):
+
+        return (
+            db.query(Content)
+            .filter(
+                Content.project_id == project_id,
+                Content.user_id == user_id,
+            )
+            .order_by(Content.created_at.desc())
+            .all()
+        )
+
+    # ==========================================================
+    # Update Content
+    # ==========================================================
+
+    @staticmethod
+    def update(
+        db: Session,
+        content_id: int,
+        user_id: int,
+        request: ContentUpdate,
+    ):
+
+        content = (
+            db.query(Content)
+            .filter(
+                Content.id == content_id,
+                Content.user_id == user_id,
+            )
+            .first()
+        )
+
+        if not content:
+
+            return {
+                "success": False,
+                "message": "Content not found.",
+            }
+
+        if request.title is not None:
+            content.title = request.title
+
+        if request.hook is not None:
+            content.hook = request.hook
+
+        if request.script is not None:
+            content.script = request.script
+
+        if request.caption is not None:
+            content.caption = request.caption
+
+        if request.hashtags is not None:
+            content.hashtags = request.hashtags
+
+        if request.keywords is not None:
+            content.keywords = request.keywords
+
+        if request.cta is not None:
+            content.cta = request.cta
+
+        if request.status is not None:
+            content.status = request.status
+
+        db.commit()
+
+        db.refresh(content)
+
+        return {
+            "success": True,
+            "message": "Content updated successfully.",
+            "content": content,
+        }
+
+    # ==========================================================
+    # Delete Content
+    # ==========================================================
+
+    @staticmethod
+    def delete(
+        db: Session,
+        content_id: int,
+        user_id: int,
+    ):
+
+        content = (
+            db.query(Content)
+            .filter(
+                Content.id == content_id,
+                Content.user_id == user_id,
+            )
+            .first()
+        )
+
+        if not content:
+
+            return {
+                "success": False,
+                "message": "Content not found.",
+            }
+
+        db.delete(content)
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Content deleted successfully.",
+        }
+
+    # ==========================================================
+    # Caption Generator
+    # ==========================================================
+
+    @staticmethod
+    def generate_caption(
+        trend: dict,
+        script: dict,
+    ):
+
+        return (
+            f"{trend.get('title', '')}\n\n"
+            f"{script.get('hook', '')}\n\n"
             "#ViralForgeAI"
         )
 
+    # ==========================================================
+    # Hashtag Generator
+    # ==========================================================
 
-
+    @staticmethod
     def generate_hashtags(
-        self,
-        trend
+        category: str,
     ):
-
-        category = trend.get(
-            "category",
-            ""
-        )
-
 
         mapping = {
 
-            "AI":[
+            "AI": [
                 "#AI",
                 "#ArtificialIntelligence",
-                "#FutureTech"
+                "#FutureTech",
             ],
 
-
-            "Finance":[
+            "Finance": [
                 "#Finance",
                 "#Investment",
-                "#Money"
+                "#Money",
             ],
 
-
-            "Psychology":[
+            "Psychology": [
                 "#Psychology",
-                "#HumanBehavior"
+                "#HumanBehavior",
             ],
 
-
-            "Technology":[
+            "Technology": [
                 "#Technology",
-                "#Innovation"
+                "#Innovation",
             ],
 
-
-            "Entertainment":[
+            "Entertainment": [
                 "#Entertainment",
-                "#Trending"
-            ]
+                "#Trending",
+            ],
 
         }
-
 
         return mapping.get(
             category,
             [
                 "#Trending",
-                "#Viral"
-            ]
+                "#Viral",
+            ],
         )

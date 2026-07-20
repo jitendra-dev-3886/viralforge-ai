@@ -8,6 +8,9 @@ from app.api.trends import router as trend_router
 from app.api.project import router as project_router
 from app.api.media import router as media_router
 from app.api.brand import router as brand_router
+from app.api.content import router as content_router
+from app.api.media import router as media_router
+
 
 from app import models
 
@@ -43,6 +46,8 @@ app.include_router(trend_router)
 app.include_router(project_router)
 app.include_router(media_router)
 app.include_router(brand_router)
+app.include_router(content_router)
+app.include_router(media_router)
 # ==========================
 # Root
 # ==========================

@@ -1,24 +1,50 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.schemas.ai import GenerateRequest
-from app.services.ai_service import AIService
 from app.database import get_db
 
+from app.schemas.ai import (
+    GenerateRequest,
+    GenerateResponse,
+)
+
+from app.services.ai_service import AIService
 
 router = APIRouter(
     prefix="/api/ai",
-    tags=["AI"]
+    tags=["AI"],
 )
 
 
-@router.post("/generate")
-def generate(
+# ==========================================================
+# Generate AI Content
+# ==========================================================
+
+@router.post(
+    "/generate",
+    response_model=GenerateResponse,
+)
+def generate_ai_content(
     request: GenerateRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    """
+    Generate AI content
+
+    Flow
+
+    Project
+        ↓
+    Prompt
+        ↓
+    AI
+        ↓
+    Content
+        ↓
+    Scene
+    """
 
     return AIService.generate(
-        request,
-        db
+        request=request,
+        db=db,
     )

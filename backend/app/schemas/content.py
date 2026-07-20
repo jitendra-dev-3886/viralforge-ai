@@ -1,27 +1,162 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
-class GeneratedContent(BaseModel):
+# ==========================================================
+# Create Content Request
+# ==========================================================
+
+class ContentCreate(BaseModel):
+
+    user_id: int
+
+    project_id: int
 
     title: str
 
-    category: str
+    hook: Optional[str] = None
+
+    script: str
+
+    caption: Optional[str] = None
+
+    hashtags: Optional[str] = None
+
+    keywords: Optional[str] = None
+
+    cta: Optional[str] = None
 
     platform: str
 
     content_type: str
 
-    score: int
+    language: str = "English"
+
+    ai_provider: Optional[str] = None
+
+    ai_model: Optional[str] = None
+
+    prompt: Optional[str] = None
+
+    status: str = "draft"
+
+
+# ==========================================================
+# Update Content Request
+# ==========================================================
+
+class ContentUpdate(BaseModel):
+
+    title: Optional[str] = None
 
     hook: Optional[str] = None
 
-    caption: Optional[str] = None
-
-    hashtags: List[str] = Field(
-        default_factory=list
-    )
-
     script: Optional[str] = None
 
-    status: str = "draft"
+    caption: Optional[str] = None
+
+    hashtags: Optional[str] = None
+
+    keywords: Optional[str] = None
+
+    cta: Optional[str] = None
+
+    platform: Optional[str] = None
+
+    content_type: Optional[str] = None
+
+    language: Optional[str] = None
+
+    ai_provider: Optional[str] = None
+
+    ai_model: Optional[str] = None
+
+    prompt: Optional[str] = None
+
+    status: Optional[str] = None
+
+
+# ==========================================================
+# Content Response
+# ==========================================================
+
+class ContentResponse(BaseModel):
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+
+    user_id: int
+
+    project_id: int
+
+    title: str
+
+    hook: Optional[str]
+
+    script: str
+
+    caption: Optional[str]
+
+    hashtags: Optional[str]
+
+    keywords: Optional[str]
+
+    cta: Optional[str]
+
+    platform: str
+
+    content_type: str
+
+    language: str
+
+    ai_provider: Optional[str]
+
+    ai_model: Optional[str]
+
+    prompt: Optional[str]
+
+    status: str
+
+    created_at: datetime
+
+    updated_at: datetime
+
+
+# ==========================================================
+# Create Response
+# ==========================================================
+
+class ContentCreateResponse(BaseModel):
+
+    success: bool
+
+    message: str
+
+    content: ContentResponse
+
+
+# ==========================================================
+# List Response
+# ==========================================================
+
+class ContentListResponse(BaseModel):
+
+    success: bool
+
+    total: int
+
+    contents: list[ContentResponse]
+
+
+# ==========================================================
+# Message Response
+# ==========================================================
+
+class ContentMessage(BaseModel):
+
+    success: bool
+
+    message: str

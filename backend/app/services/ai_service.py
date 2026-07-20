@@ -1,161 +1,190 @@
-import traceback
 import json
+import logging
+import traceback
 
-from app.services.prompt_engine import PromptEngine
-from app.core.gemini_client import GeminiClient
-from app.core.groq_client import groq_client
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.schemas.ai import GenerateRequest
 
 from app.models.project import Project
 from app.models.content import Content
 
+from app.services.prompt_engine import PromptEngine
 from app.services.scene_service import SceneService
+
+from app.core.gemini_client import GeminiClient
+from app.core.groq_client import groq_client
+
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
 
     @staticmethod
-    def generate(request, db):
+    def generate(
+        request: GenerateRequest,
+        db: Session,
+    ):
 
         try:
 
-            # ==========================
+            # =====================================================
+            # Find Project
+            # =====================================================
+
+            project = (
+                db.query(Project)
+                .filter(Project.id == request.project_id)
+                .first()
+            )
+
+            if not project:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Project not found."
+                )
+
+            # =====================================================
             # Build Prompt
-            # ==========================
+            # =====================================================
 
             prompt = PromptEngine.build(request)
 
+            logger.info("=" * 80)
+            logger.info(prompt)
+            logger.info("=" * 80)
 
-            print("=" * 80)
-            print(prompt)
-            print("=" * 80)
+            # =====================================================
+            # Select AI Provider
+            # =====================================================
 
+            provider = request.provider.lower()
 
+            if provider == "gemini":
 
-            # ==========================
-            # Generate AI Content
-            # ==========================
+                try:
 
-            try:
+                    ai_text = GeminiClient.generate(prompt)
 
-                print("Trying Gemini...")
+                    model = "gemini-2.5-flash"
 
-                ai_text = GeminiClient.generate(prompt)
+                except Exception as e:
 
-                provider = "gemini"
+                    logger.warning(
+                        f"Gemini failed : {e}"
+                    )
 
+                    logger.info(
+                        "Switching to Groq..."
+                    )
 
-            except Exception as gemini_error:
+                    ai_text = groq_client.generate(prompt)
 
-                print("Gemini Failed:")
-                print(gemini_error)
+                    provider = "groq"
 
-                print("Switching to Groq...")
+                    model = "llama-3.3-70b-versatile"
 
+            elif provider == "groq":
 
                 ai_text = groq_client.generate(prompt)
 
-                provider = "groq"
+                model = "llama-3.3-70b-versatile"
 
+            else:
 
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unsupported AI Provider."
+                )
 
-            print("AI RESPONSE:")
-            print(ai_text)
+            logger.info("AI Response Received")
 
-
-
-            # ==========================
-            # Convert JSON
-            # ==========================
+            # =====================================================
+            # Parse JSON
+            # =====================================================
 
             try:
 
                 ai_data = json.loads(ai_text)
 
+                # ==========================================
+                # Normalize AI Response
+                # ==========================================
 
-            except json.JSONDecodeError:
+                if "script" not in ai_data:
+                    ai_data["script"] = ai_data.get("description", "")
 
-                ai_data = {
-                    "raw": ai_text
-                }
+                if "keywords" not in ai_data:
+                    ai_data["keywords"] = ai_data.get("seo_keywords", [])
 
+                if "hashtags" not in ai_data:
+                    ai_data["hashtags"] = []
 
+                if "hook" not in ai_data:
+                    ai_data["hook"] = ""
 
-            # # ==========================
-            # # Normalize AI Response
-            # # ==========================
+                if "caption" not in ai_data:
+                    ai_data["caption"] = ""
 
-            # try:
+                if "cta" not in ai_data:
+                    ai_data["cta"] = ""
 
-            #     platform = request.platforms[0].lower()
+            except Exception:
 
-            #     content_type = request.content_types[0].lower()
+                logger.error("Invalid JSON returned by AI")
 
+                raise HTTPException(
+                    status_code=500,
+                    detail="AI returned invalid JSON."
+                )
 
-            #     generated = ai_data[platform][content_type]
+            # =====================================================
+            # Validate Required Fields
+            # =====================================================
 
+            required_fields = [
 
-            #     ai_data = {
+                "title",
 
-            #         "title": request.topic,
+                "script",
 
-            #         "hook": generated.get(
-            #             "voiceover",
-            #             ""
-            #         )[:200],
+                "caption",
 
+            ]
 
-            #         "script": generated.get(
-            #             "voiceover",
-            #             ""
-            #         ),
+            for field in required_fields:
 
+                if not ai_data.get(field):
 
-            #         "caption": generated.get(
-            #             "caption",
-            #             ""
-            #         ),
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"AI response missing '{field}'"
+                    )
+                # =====================================================
+            # Normalize AI Response
+            # =====================================================
 
+            hashtags = ai_data.get("hashtags", [])
 
-            #         "hashtags": generated.get(
-            #             "hashtags",
-            #             ""
-            #         ),
+            if isinstance(hashtags, list):
+                hashtags = ",".join(hashtags)
 
+            elif hashtags is None:
+                hashtags = ""
 
-            #         "video": generated.get(
-            #             "video",
-            #             ""
-            #         )
+            keywords = ai_data.get("keywords", [])
 
-            #     }
+            if isinstance(keywords, list):
+                keywords = ",".join(keywords)
 
+            elif keywords is None:
+                keywords = ""
 
-            # except Exception as e:
-
-            #     print("Normalization Failed:")
-            #     print(e)
-
-            # ==========================
-            # Find Project
-            # ==========================
-
-            project = db.query(Project).filter(
-                Project.id == request.project_id
-            ).first()
-
-
-            if not project:
-
-                return {
-                    "success": False,
-                    "error": "Project not found"
-                }
-
-
-
-            # ==========================
+            # =====================================================
             # Save Content
-            # ==========================
+            # =====================================================
 
             content = Content(
 
@@ -165,65 +194,80 @@ class AIService:
 
                 title=ai_data.get(
                     "title",
-                    "Untitled"
+                    request.topic,
                 ),
 
                 hook=ai_data.get(
-                    "hook"
+                    "hook",
                 ),
 
                 script=ai_data.get(
                     "script",
-                    ""
                 ),
 
                 caption=ai_data.get(
-                    "caption"
+                    "caption",
                 ),
-            hashtags=(
-                ",".join(ai_data.get("hashtags"))
-                if isinstance(ai_data.get("hashtags"), list)
-                else ai_data.get("hashtags")
-            ),
 
-                keywords=ai_data.get(
-                    "keywords"
-                ),
+                hashtags=hashtags,
+
+                keywords=keywords,
 
                 cta=ai_data.get(
-                    "cta"
+                    "cta",
                 ),
 
-                platform=",".join(request.platforms),
+                platform=",".join(
+                    request.platforms
+                ),
 
-                content_type=",".join(request.content_types),
+                content_type=",".join(
+                    request.content_types
+                ),
+
                 language=request.language,
 
                 ai_provider=provider,
 
-                ai_model=provider,
+                ai_model=model,
 
                 prompt=prompt,
 
-                status="generated"
+                status="generated",
 
             )
 
-
             db.add(content)
+
+            # Get content.id before scene generation
+            db.flush()
+
+            logger.info(
+                f"Content Created : {content.id}"
+            )
+
+            # =====================================================
+            # Generate Scenes
+            # =====================================================
+
+            SceneService.generate(
+
+                db=db,
+
+                project_id=project.id,
+
+                content_id=content.id,
+
+                ai_data=ai_data,
+
+            )
 
             db.commit()
 
             db.refresh(content)
-
-            SceneService.generate(
-                db=db,
-                project_id=project.id,
-                content_id=content.id,
-                ai_data=ai_data,
-            )
-
-
+                # =====================================================
+            # Success Response
+            # =====================================================
 
             return {
 
@@ -233,24 +277,62 @@ class AIService:
 
                 "content_id": content.id,
 
-                "data": ai_data
+                "data": {
+
+                    "title": content.title,
+
+                    "hook": content.hook,
+
+                    "script": content.script,
+
+                    "caption": content.caption,
+
+                    "hashtags": (
+                        content.hashtags.split(",")
+                        if content.hashtags
+                        else []
+                    ),
+
+                    "keywords": (
+                        content.keywords.split(",")
+                        if content.keywords
+                        else []
+                    ),
+
+                    "cta": content.cta,
+
+                },
 
             }
 
+        # =====================================================
+        # HTTP Exceptions
+        # =====================================================
 
-
-        except Exception as e:
-
-            traceback.print_exc()
+        except HTTPException:
 
             db.rollback()
 
+            raise
 
-            return {
+        # =====================================================
+        # Unexpected Exceptions
+        # =====================================================
 
-                "success": False,
+        except Exception as e:
 
-                "error": str(e)
+            db.rollback()
 
-            }
-        
+            logger.exception(
+                "AI Generation Failed"
+            )
+
+            traceback.print_exc()
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail=str(e),
+
+            )

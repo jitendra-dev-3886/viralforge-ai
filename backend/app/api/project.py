@@ -41,6 +41,9 @@ def create_project(
 # Get All Projects
 # =====================================================
 
+
+
+
 @router.get("/")
 def get_projects(
     db: Session = Depends(get_db),
