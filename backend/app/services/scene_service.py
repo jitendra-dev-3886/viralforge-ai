@@ -1,82 +1,294 @@
-import json
-from pathlib import Path
-
 from sqlalchemy.orm import Session
 
 from app.models.scene import Scene
-from app.models.project import Project
+from app.schemas.scene import (
+    SceneCreate,
+    SceneUpdate,
+)
 
 
 class SceneService:
+
+    # ==========================================================
+    # Create Scene
+    # ==========================================================
+
+    @staticmethod
+    def create(
+        db: Session,
+        request: SceneCreate,
+    ):
+
+        scene = Scene(
+
+            user_id=request.user_id,
+
+            project_id=request.project_id,
+
+            content_id=request.content_id,
+
+            scene_number=request.scene_number,
+
+            text=request.text,
+
+            keyword=request.keyword,
+
+            media_type=request.media_type,
+
+            duration=request.duration,
+
+            media_id=request.media_id,
+
+            status=request.status,
+
+        )
+
+        db.add(scene)
+
+        db.commit()
+
+        db.refresh(scene)
+
+        return {
+
+            "success": True,
+
+            "message": "Scene created successfully.",
+
+            "scene": scene,
+
+        }
+
+    # ==========================================================
+    # Generate Scenes From AI
+    # ==========================================================
 
     @staticmethod
     def generate(
         db: Session,
         project_id: int,
         content_id: int,
+        user_id: int,
         ai_data: dict,
     ):
 
-        project = (
-            db.query(Project)
-            .filter(Project.id == project_id)
-            .first()
-        )
-
-        if not project:
-            raise Exception("Project not found")
-
         scenes = ai_data.get("scenes", [])
 
-        saved_scenes = []
+        created = []
 
         for item in scenes:
 
             scene = Scene(
 
+                user_id=user_id,
+
                 project_id=project_id,
 
                 content_id=content_id,
 
-                scene_no=item.get("scene"),
-
-                title=ai_data.get("title"),
+                scene_number=item.get("scene"),
 
                 text=item.get("text"),
 
                 keyword=item.get("keyword"),
 
+                media_type=item.get("media_type", "image"),
+
                 duration=item.get("duration", 5),
 
-                media_type=item.get(
-                    "media_type",
-                    "image",
-                ),
+                status="pending",
 
             )
 
             db.add(scene)
 
-            saved_scenes.append(scene)
+            created.append(scene)
+
+        db.flush()
+
+        return created
+
+    # ==========================================================
+    # Get All Scenes
+    # ==========================================================
+
+    @staticmethod
+    def get_all(
+        db: Session,
+        user_id: int,
+    ):
+
+        return (
+
+            db.query(Scene)
+
+            .filter(Scene.user_id == user_id)
+
+            .order_by(Scene.scene_number.asc())
+
+            .all()
+
+        )
+
+    # ==========================================================
+    # Get Scene
+    # ==========================================================
+
+    @staticmethod
+    def get_by_id(
+        db: Session,
+        scene_id: int,
+        user_id: int,
+    ):
+
+        return (
+
+            db.query(Scene)
+
+            .filter(
+
+                Scene.id == scene_id,
+
+                Scene.user_id == user_id,
+
+            )
+
+            .first()
+
+        )
+
+    # ==========================================================
+    # Get Project Scenes
+    # ==========================================================
+
+    @staticmethod
+    def get_project_scenes(
+        db: Session,
+        project_id: int,
+        user_id: int,
+    ):
+
+        return (
+
+            db.query(Scene)
+
+            .filter(
+
+                Scene.project_id == project_id,
+
+                Scene.user_id == user_id,
+
+            )
+
+            .order_by(Scene.scene_number.asc())
+
+            .all()
+
+        )
+
+    # ==========================================================
+    # Update Scene
+    # ==========================================================
+
+    @staticmethod
+    def update(
+        db: Session,
+        scene_id: int,
+        user_id: int,
+        request: SceneUpdate,
+    ):
+
+        scene = (
+
+            db.query(Scene)
+
+            .filter(
+
+                Scene.id == scene_id,
+
+                Scene.user_id == user_id,
+
+            )
+
+            .first()
+
+        )
+
+        if not scene:
+
+            return {
+
+                "success": False,
+
+                "message": "Scene not found.",
+
+            }
+
+        data = request.model_dump(exclude_unset=True)
+
+        for key, value in data.items():
+
+            setattr(scene, key, value)
 
         db.commit()
 
-        for scene in saved_scenes:
-            db.refresh(scene)
+        db.refresh(scene)
 
-        scene_json = Path(project.path) / "content" / "scenes.json"
+        return {
 
-        with open(
-            scene_json,
-            "w",
-            encoding="utf-8",
-        ) as f:
+            "success": True,
 
-            json.dump(
-                ai_data,
-                f,
-                indent=4,
-                ensure_ascii=False,
+            "message": "Scene updated successfully.",
+
+            "scene": scene,
+
+        }
+
+    # ==========================================================
+    # Delete Scene
+    # ==========================================================
+
+    @staticmethod
+    def delete(
+        db: Session,
+        scene_id: int,
+        user_id: int,
+    ):
+
+        scene = (
+
+            db.query(Scene)
+
+            .filter(
+
+                Scene.id == scene_id,
+
+                Scene.user_id == user_id,
+
             )
 
-        return saved_scenes
+            .first()
+
+        )
+
+        if not scene:
+
+            return {
+
+                "success": False,
+
+                "message": "Scene not found.",
+
+            }
+
+        db.delete(scene)
+
+        db.commit()
+
+        return {
+
+            "success": True,
+
+            "message": "Scene deleted successfully.",
+
+        }

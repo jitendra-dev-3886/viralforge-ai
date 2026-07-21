@@ -126,3 +126,9 @@ class Media(Base):
         "Project",
         back_populates="media",
     )
+
+    scenes = relationship(
+        "Scene",
+        back_populates="media",
+        lazy="selectin",
+    )

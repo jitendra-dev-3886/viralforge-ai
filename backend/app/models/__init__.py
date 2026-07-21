@@ -8,6 +8,7 @@ from .trend import Trend
 from .subscription import Subscription
 from .usage import Usage
 from .api_setting import ApiSetting
+from .scene import Scene
 
 __all__ = [
     "User",

@@ -133,3 +133,9 @@ class Content(Base):
         "Project",
         back_populates="contents",
     )
+    scenes = relationship(
+        "Scene",
+        back_populates="content",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )

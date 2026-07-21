@@ -147,3 +147,9 @@ class Project(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    scenes = relationship(
+        "Scene",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )

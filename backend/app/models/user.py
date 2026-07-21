@@ -147,4 +147,10 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin",
-)
+    )   
+    scenes = relationship(
+        "Scene",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
