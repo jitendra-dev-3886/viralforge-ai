@@ -10,8 +10,6 @@ from pydantic import BaseModel, ConfigDict
 
 class ContentCreate(BaseModel):
 
-    user_id: int
-
     project_id: int
 
     title: str
@@ -39,8 +37,6 @@ class ContentCreate(BaseModel):
     ai_model: Optional[str] = None
 
     prompt: Optional[str] = None
-
-    status: str = "draft"
 
 
 # ==========================================================
@@ -139,6 +135,30 @@ class ContentCreateResponse(BaseModel):
 
 
 # ==========================================================
+# Update Response
+# ==========================================================
+
+class ContentUpdateResponse(BaseModel):
+
+    success: bool
+
+    message: str
+
+    content: ContentResponse
+
+
+# ==========================================================
+# Single Content Response
+# ==========================================================
+
+class ContentSingleResponse(BaseModel):
+
+    success: bool
+
+    content: ContentResponse
+
+
+# ==========================================================
 # List Response
 # ==========================================================
 
@@ -152,7 +172,18 @@ class ContentListResponse(BaseModel):
 
 
 # ==========================================================
-# Message Response
+# Delete Response
+# ==========================================================
+
+class ContentDeleteResponse(BaseModel):
+
+    success: bool
+
+    message: str
+
+
+# ==========================================================
+# Generic Message
 # ==========================================================
 
 class ContentMessage(BaseModel):

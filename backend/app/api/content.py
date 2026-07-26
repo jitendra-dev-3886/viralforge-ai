@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.content_service import ContentService
+
 from app.schemas.content import (
     ContentCreate,
     ContentUpdate,
 )
+
+from app.services.content_service import ContentService
 
 router = APIRouter(
     prefix="/api/content",
@@ -20,11 +22,13 @@ router = APIRouter(
 
 @router.post("/")
 def create_content(
+    user_id: int,
     request: ContentCreate,
     db: Session = Depends(get_db),
 ):
     return ContentService.create(
         db=db,
+        user_id=user_id,
         request=request,
     )
 
@@ -85,8 +89,8 @@ def get_project_contents(
 @router.put("/{content_id}")
 def update_content(
     content_id: int,
-    request: ContentUpdate,
     user_id: int,
+    request: ContentUpdate,
     db: Session = Depends(get_db),
 ):
     return ContentService.update(

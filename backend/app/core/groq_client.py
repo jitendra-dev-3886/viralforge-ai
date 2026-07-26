@@ -16,35 +16,29 @@ class GroqClient:
             api_key=os.getenv("GROQ_API_KEY")
         )
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str):
 
-        try:
-            response = self.client.chat.completions.create(
+        response = self.client.chat.completions.create(
 
-                model="llama-3.3-70b-versatile",
+            model="llama-3.3-70b-versatile",
 
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are ViralForge AI, "
-                            "an expert social media content creator."
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are ViralForge AI."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
 
-                temperature=0.7,
-                max_tokens=2000
-            )
+            temperature=0.7,
+            max_tokens=2000,
+        )
 
-            return response.choices[0].message.content
-
-        except Exception as e:
-            raise Exception(f"Groq AI Error: {str(e)}")
+        return response.choices[0].message.content
 
 
+# Singleton Instance
 groq_client = GroqClient()

@@ -137,15 +137,17 @@ class PexelsClient:
                 query,
             ),
 
-            "url": photo["src"]["large2x"],
+            "file_url": photo["src"]["large2x"],
 
-            "width": photo.get("width"),
+            "width": photo.get("width", 0),
 
-            "height": photo.get("height"),
+            "height": photo.get("height", 0),
 
             "mime_type": "image/jpeg",
 
             "extension": ".jpg",
+
+            "duration": 0,
 
         }
 
@@ -193,15 +195,17 @@ class PexelsClient:
 
             "title": query,
 
-            "url": best["link"],
+            "file_url": best["link"],
 
-            "width": best.get("width"),
+            "width": best.get("width", 0),
 
-            "height": best.get("height"),
+            "height": best.get("height", 0),
 
             "mime_type": "video/mp4",
 
             "extension": ".mp4",
+
+            "duration": int(video.get("duration", 0)),
 
         }
 
@@ -248,9 +252,9 @@ class PexelsClient:
 
         return {
 
-            "path": save_path,
+            "file_path": save_path,
 
-            "size": os.path.getsize(save_path),
+            "file_size": os.path.getsize(save_path),
 
         }
 
@@ -270,9 +274,13 @@ class PexelsClient:
 
             media = cls.first_image(keyword)
 
-        else:
+        elif media_type.lower() == "video":
 
             media = cls.first_video(keyword)
+
+        else:
+
+            raise Exception("Unsupported media type.")
 
         if not media:
 
@@ -280,7 +288,7 @@ class PexelsClient:
 
         download = cls.download_file(
 
-            media["url"],
+            media["file_url"],
 
             save_path,
 
@@ -288,8 +296,24 @@ class PexelsClient:
 
         return {
 
-            **media,
+            "provider": media["provider"],
 
-            **download,
+            "title": media["title"],
+
+            "file_url": media["file_url"],
+
+            "file_path": download["file_path"],
+
+            "file_size": download["file_size"],
+
+            "width": media["width"],
+
+            "height": media["height"],
+
+            "mime_type": media["mime_type"],
+
+            "extension": media["extension"],
+
+            "duration": media["duration"],
 
         }

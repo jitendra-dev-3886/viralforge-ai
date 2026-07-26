@@ -1,5 +1,6 @@
 import json
-from app.core.groq_client import GroqClient
+
+from app.core.groq_client import groq_client
 
 
 class TrendAIRanker:
@@ -7,59 +8,98 @@ class TrendAIRanker:
     @staticmethod
     def rank(trends):
 
-        prompt = """
+        topics = json.dumps(trends, indent=2)
+
+        prompt = f"""
 You are ViralForge AI Trend Analyzer.
 
 Below are today's trending topics.
 
-""" + json.dumps(trends, indent=2) + """
+{topics}
 
-Your job is to:
+Your tasks are:
 
 1. Remove duplicate ideas.
 2. Merge similar topics.
-3. Score each topic from 1-100.
-4. Detect category:
-- Finance
-- Motivation
-- Business
-- Psychology
-- AI
-- Technology
-- Health
-- Fitness
-- Spiritual
-- Education
-- Entertainment
+3. Score every topic from 1 to 100.
+4. Detect exactly one category:
+   - Finance
+   - Motivation
+   - Business
+   - Psychology
+   - AI
+   - Technology
+   - Health
+   - Fitness
+   - Spiritual
+   - Education
+   - Entertainment
 
-5. Recommend best platform:
-- Instagram
-- Facebook
-- YouTube
+5. Recommend the best platform:
+   - Instagram
+   - Facebook
+   - YouTube
 
-6. Recommend best content type:
-- Reel
-- Carousel
-- Story
-- Post
-- Short
-- Video
+6. Recommend the best content type:
+   - Reel
+   - Carousel
+   - Story
+   - Post
+   - Short
+   - Video
 
 Return ONLY valid JSON.
 
-Example:
+Expected JSON format:
 
 [
-  {
+  {{
     "title": "Bitcoin Crash Explained",
     "score": 98,
     "category": "Finance",
     "platform": "Instagram",
     "content_type": "Reel"
-  }
+  }},
+  {{
+    "title": "AI is Changing Jobs",
+    "score": 95,
+    "category": "AI",
+    "platform": "YouTube",
+    "content_type": "Short"
+  }}
 ]
+
+Rules:
+
+- Return JSON only.
+- No markdown.
+- No explanation.
+- No comments.
+- No extra text.
 """
 
-        result = GroqClient.generate(prompt)
+        try:
 
-        return json.loads(result)
+            response = groq_client.generate(prompt)
+
+            if response.startswith("```"):
+                response = response.replace("```json", "")
+                response = response.replace("```", "")
+                response = response.strip()
+
+            return json.loads(response)
+
+        except json.JSONDecodeError:
+
+            return {
+                "success": False,
+                "message": "Groq returned invalid JSON.",
+                "raw_response": response,
+            }
+
+        except Exception as e:
+
+            return {
+                "success": False,
+                "message": str(e),
+            }

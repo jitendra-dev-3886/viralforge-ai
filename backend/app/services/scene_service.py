@@ -16,12 +16,13 @@ class SceneService:
     @staticmethod
     def create(
         db: Session,
+        user_id: int,
         request: SceneCreate,
     ):
 
         scene = Scene(
 
-            user_id=request.user_id,
+            user_id=user_id,
 
             project_id=request.project_id,
 
@@ -50,13 +51,9 @@ class SceneService:
         db.refresh(scene)
 
         return {
-
             "success": True,
-
             "message": "Scene created successfully.",
-
             "scene": scene,
-
         }
 
     # ==========================================================
@@ -76,7 +73,7 @@ class SceneService:
 
         created = []
 
-        for item in scenes:
+        for index, item in enumerate(scenes, start=1):
 
             scene = Scene(
 
@@ -86,15 +83,24 @@ class SceneService:
 
                 content_id=content_id,
 
-                scene_number=item.get("scene"),
+                scene_number=item.get(
+                    "scene_number",
+                    item.get("scene", index),
+                ),
 
-                text=item.get("text"),
+                text=item.get("text", ""),
 
                 keyword=item.get("keyword"),
 
-                media_type=item.get("media_type", "image"),
+                media_type=item.get(
+                    "media_type",
+                    "image",
+                ),
 
-                duration=item.get("duration", 5),
+                duration=item.get(
+                    "duration",
+                    5,
+                ),
 
                 status="pending",
 
@@ -119,19 +125,14 @@ class SceneService:
     ):
 
         return (
-
             db.query(Scene)
-
             .filter(Scene.user_id == user_id)
-
             .order_by(Scene.scene_number.asc())
-
             .all()
-
         )
 
     # ==========================================================
-    # Get Scene
+    # Get By ID
     # ==========================================================
 
     @staticmethod
@@ -142,19 +143,12 @@ class SceneService:
     ):
 
         return (
-
             db.query(Scene)
-
             .filter(
-
                 Scene.id == scene_id,
-
                 Scene.user_id == user_id,
-
             )
-
             .first()
-
         )
 
     # ==========================================================
@@ -169,21 +163,34 @@ class SceneService:
     ):
 
         return (
-
             db.query(Scene)
-
             .filter(
-
                 Scene.project_id == project_id,
-
                 Scene.user_id == user_id,
-
             )
-
             .order_by(Scene.scene_number.asc())
-
             .all()
+        )
 
+    # ==========================================================
+    # Get Content Scenes
+    # ==========================================================
+
+    @staticmethod
+    def get_content_scenes(
+        db: Session,
+        content_id: int,
+        user_id: int,
+    ):
+
+        return (
+            db.query(Scene)
+            .filter(
+                Scene.content_id == content_id,
+                Scene.user_id == user_id,
+            )
+            .order_by(Scene.scene_number.asc())
+            .all()
         )
 
     # ==========================================================
@@ -199,35 +206,24 @@ class SceneService:
     ):
 
         scene = (
-
             db.query(Scene)
-
             .filter(
-
                 Scene.id == scene_id,
-
                 Scene.user_id == user_id,
-
             )
-
             .first()
-
         )
 
         if not scene:
 
             return {
-
                 "success": False,
-
                 "message": "Scene not found.",
-
             }
 
         data = request.model_dump(exclude_unset=True)
 
         for key, value in data.items():
-
             setattr(scene, key, value)
 
         db.commit()
@@ -235,13 +231,9 @@ class SceneService:
         db.refresh(scene)
 
         return {
-
             "success": True,
-
             "message": "Scene updated successfully.",
-
             "scene": scene,
-
         }
 
     # ==========================================================
@@ -256,29 +248,19 @@ class SceneService:
     ):
 
         scene = (
-
             db.query(Scene)
-
             .filter(
-
                 Scene.id == scene_id,
-
                 Scene.user_id == user_id,
-
             )
-
             .first()
-
         )
 
         if not scene:
 
             return {
-
                 "success": False,
-
                 "message": "Scene not found.",
-
             }
 
         db.delete(scene)
@@ -286,9 +268,6 @@ class SceneService:
         db.commit()
 
         return {
-
             "success": True,
-
             "message": "Scene deleted successfully.",
-
         }

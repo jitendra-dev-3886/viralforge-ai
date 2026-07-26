@@ -9,19 +9,20 @@ from app.schemas.content import (
 
 class ContentService:
 
-    # ==========================================================
+    # =====================================================
     # Create Content
-    # ==========================================================
+    # =====================================================
 
     @staticmethod
     def create(
         db: Session,
+        user_id: int,
         request: ContentCreate,
     ):
 
         content = Content(
 
-            user_id=request.user_id,
+            user_id=user_id,
 
             project_id=request.project_id,
 
@@ -67,9 +68,9 @@ class ContentService:
             "content": content,
         }
 
-    # ==========================================================
+    # =====================================================
     # Get All Contents
-    # ==========================================================
+    # =====================================================
 
     @staticmethod
     def get_all(
@@ -77,16 +78,27 @@ class ContentService:
         user_id: int,
     ):
 
-        return (
+        contents = (
+
             db.query(Content)
+
             .filter(Content.user_id == user_id)
+
             .order_by(Content.created_at.desc())
+
             .all()
+
         )
 
-    # ==========================================================
-    # Get By ID
-    # ==========================================================
+        return {
+            "success": True,
+            "total": len(contents),
+            "contents": contents,
+        }
+
+    # =====================================================
+    # Get Single Content
+    # =====================================================
 
     @staticmethod
     def get_by_id(
@@ -95,18 +107,37 @@ class ContentService:
         user_id: int,
     ):
 
-        return (
+        content = (
+
             db.query(Content)
+
             .filter(
+
                 Content.id == content_id,
+
                 Content.user_id == user_id,
+
             )
+
             .first()
+
         )
 
-    # ==========================================================
-    # Get Project Contents
-    # ==========================================================
+        if not content:
+
+            return {
+                "success": False,
+                "message": "Content not found.",
+            }
+
+        return {
+            "success": True,
+            "content": content,
+        }
+
+    # =====================================================
+    # Get Contents By Project
+    # =====================================================
 
     @staticmethod
     def get_project_contents(
@@ -115,19 +146,33 @@ class ContentService:
         user_id: int,
     ):
 
-        return (
+        contents = (
+
             db.query(Content)
+
             .filter(
+
                 Content.project_id == project_id,
+
                 Content.user_id == user_id,
+
             )
+
             .order_by(Content.created_at.desc())
+
             .all()
+
         )
 
-    # ==========================================================
+        return {
+            "success": True,
+            "total": len(contents),
+            "contents": contents,
+        }
+
+    # =====================================================
     # Update Content
-    # ==========================================================
+    # =====================================================
 
     @staticmethod
     def update(
@@ -138,12 +183,19 @@ class ContentService:
     ):
 
         content = (
+
             db.query(Content)
+
             .filter(
+
                 Content.id == content_id,
+
                 Content.user_id == user_id,
+
             )
+
             .first()
+
         )
 
         if not content:
@@ -153,29 +205,13 @@ class ContentService:
                 "message": "Content not found.",
             }
 
-        if request.title is not None:
-            content.title = request.title
+        update_data = request.model_dump(
+            exclude_unset=True,
+            exclude_none=True,
+        )
 
-        if request.hook is not None:
-            content.hook = request.hook
-
-        if request.script is not None:
-            content.script = request.script
-
-        if request.caption is not None:
-            content.caption = request.caption
-
-        if request.hashtags is not None:
-            content.hashtags = request.hashtags
-
-        if request.keywords is not None:
-            content.keywords = request.keywords
-
-        if request.cta is not None:
-            content.cta = request.cta
-
-        if request.status is not None:
-            content.status = request.status
+        for key, value in update_data.items():
+            setattr(content, key, value)
 
         db.commit()
 
@@ -187,9 +223,9 @@ class ContentService:
             "content": content,
         }
 
-    # ==========================================================
+    # =====================================================
     # Delete Content
-    # ==========================================================
+    # =====================================================
 
     @staticmethod
     def delete(
@@ -199,12 +235,19 @@ class ContentService:
     ):
 
         content = (
+
             db.query(Content)
+
             .filter(
+
                 Content.id == content_id,
+
                 Content.user_id == user_id,
+
             )
+
             .first()
+
         )
 
         if not content:
@@ -223,9 +266,9 @@ class ContentService:
             "message": "Content deleted successfully.",
         }
 
-    # ==========================================================
-    # Caption Generator
-    # ==========================================================
+    # =====================================================
+    # Generate Caption
+    # =====================================================
 
     @staticmethod
     def generate_caption(
@@ -239,9 +282,9 @@ class ContentService:
             "#ViralForgeAI"
         )
 
-    # ==========================================================
-    # Hashtag Generator
-    # ==========================================================
+    # =====================================================
+    # Generate Hashtags
+    # =====================================================
 
     @staticmethod
     def generate_hashtags(
@@ -280,9 +323,12 @@ class ContentService:
         }
 
         return mapping.get(
+
             category,
+
             [
                 "#Trending",
                 "#Viral",
             ],
+
         )

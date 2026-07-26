@@ -1,5 +1,7 @@
-from pydantic import BaseModel
+from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 # ==========================================================
@@ -7,8 +9,6 @@ from typing import Optional
 # ==========================================================
 
 class SceneCreate(BaseModel):
-
-    user_id: int
 
     project_id: int
 
@@ -49,10 +49,12 @@ class SceneUpdate(BaseModel):
 
 
 # ==========================================================
-# Response
+# Scene Response
 # ==========================================================
 
 class SceneResponse(BaseModel):
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
 
@@ -76,5 +78,43 @@ class SceneResponse(BaseModel):
 
     status: str
 
-    class Config:
-        from_attributes = True
+    created_at: datetime
+
+    updated_at: datetime
+
+
+# ==========================================================
+# Create Response
+# ==========================================================
+
+class SceneCreateResponse(BaseModel):
+
+    success: bool
+
+    message: str
+
+    scene: SceneResponse
+
+
+# ==========================================================
+# List Response
+# ==========================================================
+
+class SceneListResponse(BaseModel):
+
+    success: bool
+
+    total: int
+
+    scenes: list[SceneResponse]
+
+
+# ==========================================================
+# Message Response
+# ==========================================================
+
+class SceneMessage(BaseModel):
+
+    success: bool
+
+    message: str

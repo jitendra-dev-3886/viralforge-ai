@@ -42,28 +42,7 @@ class DownloaderService:
             )
 
         # ======================================================
-        # Search Media
-        # ======================================================
-
-        media = PexelsClient.first_image(
-            scene.keyword
-        )
-
-        if scene.media_type == "video":
-
-            media = PexelsClient.first_video(
-                scene.keyword
-            )
-
-        if not media:
-
-            raise HTTPException(
-                status_code=404,
-                detail="No media found from Pexels.",
-            )
-
-        # ======================================================
-        # Storage
+        # Storage Folder
         # ======================================================
 
         folder = os.path.join(
@@ -74,22 +53,21 @@ class DownloaderService:
 
         if scene.media_type == "image":
 
-            folder = os.path.join(
-                folder,
-                "images",
-            )
+            folder = os.path.join(folder, "images")
 
         else:
 
-            folder = os.path.join(
-                folder,
-                "videos",
-            )
+            folder = os.path.join(folder, "videos")
 
-        filename = (
-            f"scene_{scene.scene_number}"
-            f"{media['extension']}"
-        )
+        os.makedirs(folder, exist_ok=True)
+
+        # ======================================================
+        # File Name
+        # ======================================================
+
+        extension = ".jpg" if scene.media_type == "image" else ".mp4"
+
+        filename = f"scene_{scene.scene_number}{extension}"
 
         filepath = os.path.join(
             folder,
@@ -97,13 +75,25 @@ class DownloaderService:
         )
 
         # ======================================================
-        # Download
+        # Download From Pexels
         # ======================================================
 
-        file = PexelsClient.download_file(
-            media["url"],
-            filepath,
+        media = PexelsClient.search_and_download(
+
+            keyword=scene.keyword,
+
+            media_type=scene.media_type,
+
+            save_path=filepath,
+
         )
+
+        if not media:
+
+            raise HTTPException(
+                status_code=404,
+                detail="No media found from Pexels.",
+            )
 
         # ======================================================
         # Save Media
@@ -117,27 +107,27 @@ class DownloaderService:
 
             media_type=scene.media_type,
 
-            provider="Pexels",
+            provider=media["provider"],
 
             title=media["title"],
 
             file_name=filename,
 
-            file_path=file["path"],
+            file_path=media["file_path"],
 
-            file_url=media["url"],
+            file_url=media["file_url"],
 
             mime_type=media["mime_type"],
 
             extension=media["extension"],
 
-            width=media.get("width"),
+            duration=media["duration"],
 
-            height=media.get("height"),
+            width=media["width"],
 
-            duration=scene.duration,
+            height=media["height"],
 
-            file_size=file["size"],
+            file_size=media["file_size"],
 
             status="ready",
 
@@ -175,12 +165,14 @@ class DownloaderService:
 
             "provider": media_record.provider,
 
+            "title": media_record.title,
+
             "file_name": media_record.file_name,
 
             "file_path": media_record.file_path,
 
             "file_url": media_record.file_url,
 
-            "status": scene.status,
+            "status": media_record.status,
 
         }

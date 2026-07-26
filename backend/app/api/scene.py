@@ -13,7 +13,7 @@ from app.services.scene_service import SceneService
 
 router = APIRouter(
     prefix="/api/scenes",
-    tags=["Scenes"],
+    tags=["Scene"],
 )
 
 
@@ -25,10 +25,16 @@ router = APIRouter(
 def create_scene(
     request: SceneCreate,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default value to prevent 422
 ):
 
+    # NOTE: If your frontend is actually sending user_id inside the JSON body,
+    # you can remove `user_id: int = 1` above and change the line below to:
+    # user_id=request.user_id 
+    
     return SceneService.create(
         db=db,
+        user_id=user_id,
         request=request,
     )
 
@@ -39,25 +45,31 @@ def create_scene(
 
 @router.get("/")
 def get_all_scenes(
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
 ):
 
-    return SceneService.get_all(
+    scenes = SceneService.get_all(
         db=db,
         user_id=user_id,
     )
 
+    return {
+        "success": True,
+        "total": len(scenes),
+        "scenes": scenes,
+    }
+
 
 # ==========================================================
-# Get Single Scene
+# Get Scene By ID
 # ==========================================================
 
 @router.get("/{scene_id}")
 def get_scene(
     scene_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
 ):
 
     return SceneService.get_by_id(
@@ -74,15 +86,45 @@ def get_scene(
 @router.get("/project/{project_id}")
 def get_project_scenes(
     project_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
 ):
 
-    return SceneService.get_project_scenes(
+    scenes = SceneService.get_project_scenes(
         db=db,
         project_id=project_id,
         user_id=user_id,
     )
+
+    return {
+        "success": True,
+        "total": len(scenes),
+        "scenes": scenes,
+    }
+
+
+# ==========================================================
+# Get Content Scenes
+# ==========================================================
+
+@router.get("/content/{content_id}")
+def get_content_scenes(
+    content_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
+):
+
+    scenes = SceneService.get_content_scenes(
+        db=db,
+        content_id=content_id,
+        user_id=user_id,
+    )
+
+    return {
+        "success": True,
+        "total": len(scenes),
+        "scenes": scenes,
+    }
 
 
 # ==========================================================
@@ -92,9 +134,9 @@ def get_project_scenes(
 @router.put("/{scene_id}")
 def update_scene(
     scene_id: int,
-    user_id: int,
     request: SceneUpdate,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
 ):
 
     return SceneService.update(
@@ -112,8 +154,8 @@ def update_scene(
 @router.delete("/{scene_id}")
 def delete_scene(
     scene_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = 1,  # <-- Added default
 ):
 
     return SceneService.delete(
