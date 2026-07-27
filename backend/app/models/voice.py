@@ -4,6 +4,7 @@ from sqlalchemy import (
     String,
     Text,
     ForeignKey,
+    Float,
     DateTime,
 )
 
@@ -13,9 +14,9 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class Scene(Base):
+class Voice(Base):
 
-    __tablename__ = "scenes"
+    __tablename__ = "voices"
 
     id = Column(
         Integer,
@@ -44,92 +45,97 @@ class Scene(Base):
         index=True,
     )
 
+    scene_id = Column(
+        Integer,
+        ForeignKey("scenes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     # =====================================================
-    # Scene Information
+    # Voice Settings
     # =====================================================
 
-    scene_number = Column(
-        Integer,
+    provider = Column(
+        String(50),
+        default="edge-tts",
+    )
+
+    voice = Column(
+        String(100),
         nullable=False,
     )
 
-    title = Column(
-        String(255),
+    gender = Column(
+        String(20),
         nullable=True,
     )
+
+    language = Column(
+        String(30),
+        default="English",
+    )
+
+    speed = Column(
+        String(20),
+        default="+0%",
+    )
+
+    pitch = Column(
+        String(20),
+        default="+0Hz",
+    )
+
+    # =====================================================
+    # Voice Content
+    # =====================================================
 
     text = Column(
         Text,
         nullable=False,
     )
 
-    keyword = Column(
+    # =====================================================
+    # Generated Audio
+    # =====================================================
+
+    audio_name = Column(
         String(255),
         nullable=True,
     )
 
-    # =====================================================
-    # AI Prompts
-    # =====================================================
-
-    image_prompt = Column(
-        Text,
+    audio_path = Column(
+        String(1000),
         nullable=True,
     )
 
-    video_prompt = Column(
-        Text,
+    audio_url = Column(
+        String(1000),
         nullable=True,
-    )
-
-    voice_text = Column(
-        Text,
-        nullable=True,
-    )
-
-    subtitle = Column(
-        Text,
-        nullable=True,
-    )
-
-    # =====================================================
-    # Rendering
-    # =====================================================
-
-    media_type = Column(
-        String(30),
-        default="image",
     )
 
     duration = Column(
+        Float,
+        default=0,
+    )
+
+    file_size = Column(
         Integer,
-        default=5,
-    )
-
-    camera_angle = Column(
-        String(100),
-        nullable=True,
-    )
-
-    transition = Column(
-        String(100),
         nullable=True,
     )
 
     # =====================================================
-    # Linked Media
+    # Status
     # =====================================================
-
-    media_id = Column(
-        Integer,
-        ForeignKey("media.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
 
     status = Column(
         String(30),
         default="pending",
+    )
+
+    error_message = Column(
+        Text,
+        nullable=True,
     )
 
     # =====================================================
@@ -153,34 +159,20 @@ class Scene(Base):
 
     user = relationship(
         "User",
-        back_populates="scenes",
+        back_populates="voices",
     )
 
     project = relationship(
         "Project",
-        back_populates="scenes",
+        back_populates="voices",
     )
 
     content = relationship(
         "Content",
-        back_populates="scenes",
+        back_populates="voices",
     )
 
-    media = relationship(
-        "Media",
-        back_populates="scenes",
-    )
-
-    voices = relationship(
-        "Voice",
-        back_populates="scene",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-    )
-
-    images = relationship(
-        "Image",
-        back_populates="scene",
-        cascade="all, delete-orphan",
-        lazy="selectin",
+    scene = relationship(
+        "Scene",
+        back_populates="voices",
     )

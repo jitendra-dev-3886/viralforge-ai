@@ -1,144 +1,574 @@
-import os
+from pathlib import Path
+import uuid
 
-from fastapi import HTTPException
+import edge_tts
+
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.models.scene import Scene
-from app.models.media import Media
-
-from app.core.edge_tts_client import EdgeTTSClient
+from app.models.voice import Voice
+from app.schemas.voice import VoiceCreate
 
 
 class VoiceService:
 
+    BASE_DIR = Path("storage/projects")
+
+    # ==========================================================
+    # Generate Voice
+    # ==========================================================
+
     @staticmethod
-    def generate(
+    async def generate(
         db: Session,
-        scene_id: int,
-        voice: str = "en-US-AriaNeural",
+        user_id: int,
+        request: VoiceCreate,
     ):
 
-        # =====================================================
-        # Get Scene
-        # =====================================================
+        try:
 
-        scene = (
-            db.query(Scene)
-            .filter(Scene.id == scene_id)
-            .first()
-        )
+            # ==========================================
+            # Create Audio Folder
+            # ==========================================
 
-        if not scene:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Scene not found.",
+            audio_dir = (
+                VoiceService.BASE_DIR
+                / str(request.project_id)
+                / "audio"
             )
 
-        if not scene.text:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Scene text is empty.",
+            audio_dir.mkdir(
+                parents=True,
+                exist_ok=True,
             )
 
-        # =====================================================
-        # Storage Folder
-        # =====================================================
+            # ==========================================
+            # Audio File
+            # ==========================================
 
-        folder = os.path.join(
-            "storage",
-            "projects",
-            str(scene.project_id),
-            "audio",
-        )
+            filename = (
+                f"scene_{request.scene_id}_"
+                f"{uuid.uuid4().hex[:8]}.mp3"
+            )
 
-        os.makedirs(
-            folder,
-            exist_ok=True,
-        )
+            audio_path = audio_dir / filename
 
-        filename = f"scene_{scene.scene_number}.mp3"
+            # ==========================================
+            # Generate Audio
+            # ==========================================
 
-        filepath = os.path.join(
-            folder,
-            filename,
-        )
+            communicate = edge_tts.Communicate(
 
-        # =====================================================
-        # Generate Voice
-        # =====================================================
+                text=request.text,
 
-        result = EdgeTTSClient.generate(
-            text=scene.text,
-            output_file=filepath,
-            voice=voice,
-        )
+                voice=request.voice,
 
-        # =====================================================
-        # Save Media
-        # =====================================================
+                rate=request.speed,
 
-        media = Media(
+                pitch=request.pitch,
 
-            user_id=scene.user_id,
+            )
 
-            project_id=scene.project_id,
+            await communicate.save(str(audio_path))
 
-            media_type="audio",
+            # ==========================================
+            # File Size
+            # ==========================================
 
-            provider="Edge-TTS",
+            file_size = (
+                audio_path.stat().st_size
+                if audio_path.exists()
+                else 0
+            )
 
-            title=f"Scene {scene.scene_number} Voice",
+            # ==========================================
+            # Save Database
+            # ==========================================
 
-            file_name=filename,
+            voice = Voice(
 
-            file_path=result["path"],
+                user_id=user_id,
 
-            file_url="",
+                project_id=request.project_id,
 
-            mime_type="audio/mpeg",
+                content_id=request.content_id,
 
-            extension=".mp3",
+                scene_id=request.scene_id,
 
-            duration=scene.duration,
+                provider=request.provider,
 
-            width=0,
+                voice=request.voice,
 
-            height=0,
+                gender=request.gender,
 
-            file_size=result["size"],
+                language=request.language,
 
-            status="ready",
+                speed=request.speed,
 
-        )
+                pitch=request.pitch,
 
-        db.add(media)
+                text=request.text,
 
-        db.commit()
+                audio_name=filename,
 
-        db.refresh(media)
+                audio_path=str(audio_path),
 
-        # =====================================================
-        # Response
-        # =====================================================
+                audio_url=None,
 
-        return {
+                duration=0,
 
-            "success": True,
+                file_size=file_size,
 
-            "scene_id": scene.id,
+                status="generated",
 
-            "media_id": media.id,
+                error_message=None,
 
-            "provider": "Edge-TTS",
+            )
 
-            "voice": voice,
+            db.add(voice)
 
-            "file_name": filename,
+            db.commit()
 
-            "file_path": filepath,
+            db.refresh(voice)
 
-            "status": media.status,
+            return {
 
-        }
+                "success": True,
+
+                "message": "Voice generated successfully.",
+
+                "voice": voice,
+
+            }
+
+        except Exception as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+            # ==========================================================
+    # Get All Voices
+    # ==========================================================
+
+    @staticmethod
+    def get_all(
+        db: Session,
+        user_id: int,
+    ):
+
+        try:
+
+            voices = (
+                db.query(Voice)
+                .filter(
+                    Voice.user_id == user_id,
+                )
+                .order_by(
+                    Voice.created_at.desc(),
+                )
+                .all()
+            )
+
+            return voices
+
+        except SQLAlchemyError:
+
+            return []
+
+    # ==========================================================
+    # Get Voice By ID
+    # ==========================================================
+
+    @staticmethod
+    def get_by_id(
+        db: Session,
+        voice_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.id == voice_id,
+                    Voice.user_id == user_id,
+                )
+                .first()
+            )
+
+            return voice
+
+        except SQLAlchemyError:
+
+            return None
+
+    # ==========================================================
+    # Get Project Voices
+    # ==========================================================
+
+    @staticmethod
+    def get_project(
+        db: Session,
+        project_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voices = (
+                db.query(Voice)
+                .filter(
+                    Voice.project_id == project_id,
+                    Voice.user_id == user_id,
+                )
+                .order_by(
+                    Voice.created_at.asc(),
+                )
+                .all()
+            )
+
+            return voices
+
+        except SQLAlchemyError:
+
+            return []
+
+    # ==========================================================
+    # Get Content Voices
+    # ==========================================================
+
+    @staticmethod
+    def get_content(
+        db: Session,
+        content_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voices = (
+                db.query(Voice)
+                .filter(
+                    Voice.content_id == content_id,
+                    Voice.user_id == user_id,
+                )
+                .order_by(
+                    Voice.created_at.asc(),
+                )
+                .all()
+            )
+
+            return voices
+
+        except SQLAlchemyError:
+
+            return []
+
+    # ==========================================================
+    # Get Scene Voice
+    # ==========================================================
+
+    @staticmethod
+    def get_scene(
+        db: Session,
+        scene_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.scene_id == scene_id,
+                    Voice.user_id == user_id,
+                )
+                .first()
+            )
+
+            return voice
+
+        except SQLAlchemyError:
+
+            return None
+            # ==========================================================
+    # Update Voice
+    # ==========================================================
+
+    @staticmethod
+    def update(
+        db: Session,
+        voice_id: int,
+        user_id: int,
+        request: VoiceUpdate,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.id == voice_id,
+                    Voice.user_id == user_id,
+                )
+                .first()
+            )
+
+            if not voice:
+
+                return {
+                    "success": False,
+                    "message": "Voice not found.",
+                }
+
+            data = request.model_dump(exclude_unset=True)
+
+            for key, value in data.items():
+
+                setattr(voice, key, value)
+
+            db.commit()
+
+            db.refresh(voice)
+
+            return {
+
+                "success": True,
+
+                "message": "Voice updated successfully.",
+
+                "voice": voice,
+
+            }
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+
+    # ==========================================================
+    # Delete Voice
+    # ==========================================================
+
+    @staticmethod
+    def delete(
+        db: Session,
+        voice_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.id == voice_id,
+                    Voice.user_id == user_id,
+                )
+                .first()
+            )
+
+            if not voice:
+
+                return {
+                    "success": False,
+                    "message": "Voice not found.",
+                }
+
+            # Delete MP3 if exists
+            if voice.audio_path:
+
+                path = Path(voice.audio_path)
+
+                if path.exists():
+
+                    path.unlink()
+
+            db.delete(voice)
+
+            db.commit()
+
+            return {
+
+                "success": True,
+
+                "message": "Voice deleted successfully.",
+
+            }
+
+        except Exception as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+
+    # ==========================================================
+    # Regenerate Voice
+    # ==========================================================
+
+    @staticmethod
+    async def regenerate(
+        db: Session,
+        voice_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.id == voice_id,
+                    Voice.user_id == user_id,
+                )
+                .first()
+            )
+
+            if not voice:
+
+                return {
+
+                    "success": False,
+
+                    "message": "Voice not found.",
+
+                }
+
+            # Remove old file
+
+            if voice.audio_path:
+
+                old_file = Path(voice.audio_path)
+
+                if old_file.exists():
+
+                    old_file.unlink()
+
+            # Generate new filename
+
+            filename = (
+                f"scene_{voice.scene_id}_"
+                f"{uuid.uuid4().hex[:8]}.mp3"
+            )
+
+            audio_dir = (
+                VoiceService.BASE_DIR
+                / str(voice.project_id)
+                / "audio"
+            )
+
+            audio_dir.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            audio_path = audio_dir / filename
+
+            communicate = edge_tts.Communicate(
+
+                text=voice.text,
+
+                voice=voice.voice,
+
+                rate=voice.speed,
+
+                pitch=voice.pitch,
+
+            )
+
+            await communicate.save(str(audio_path))
+
+            voice.audio_name = filename
+
+            voice.audio_path = str(audio_path)
+
+            voice.file_size = audio_path.stat().st_size
+
+            voice.status = "generated"
+
+            voice.error_message = None
+
+            db.commit()
+
+            db.refresh(voice)
+
+            return {
+
+                "success": True,
+
+                "message": "Voice regenerated successfully.",
+
+                "voice": voice,
+
+            }
+
+        except Exception as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+
+    # ==========================================================
+    # Update Status
+    # ==========================================================
+
+    @staticmethod
+    def update_status(
+        db: Session,
+        voice_id: int,
+        status: str,
+    ):
+
+        try:
+
+            voice = (
+                db.query(Voice)
+                .filter(
+                    Voice.id == voice_id,
+                )
+                .first()
+            )
+
+            if not voice:
+
+                return None
+
+            voice.status = status
+
+            db.commit()
+
+            db.refresh(voice)
+
+            return voice
+
+        except SQLAlchemyError:
+
+            db.rollback()
+
+            return None

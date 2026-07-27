@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.scene import Scene
 from app.schemas.scene import (
@@ -20,41 +21,73 @@ class SceneService:
         request: SceneCreate,
     ):
 
-        scene = Scene(
+        try:
 
-            user_id=user_id,
+            scene = Scene(
 
-            project_id=request.project_id,
+                user_id=user_id,
 
-            content_id=request.content_id,
+                project_id=request.project_id,
 
-            scene_number=request.scene_number,
+                content_id=request.content_id,
 
-            text=request.text,
+                scene_number=request.scene_number,
 
-            keyword=request.keyword,
+                title=request.title,
 
-            media_type=request.media_type,
+                text=request.text,
 
-            duration=request.duration,
+                keyword=request.keyword,
 
-            media_id=request.media_id,
+                image_prompt=request.image_prompt,
 
-            status=request.status,
+                video_prompt=request.video_prompt,
 
-        )
+                voice_text=request.voice_text,
 
-        db.add(scene)
+                subtitle=request.subtitle,
 
-        db.commit()
+                media_type=request.media_type,
 
-        db.refresh(scene)
+                duration=request.duration,
 
-        return {
-            "success": True,
-            "message": "Scene created successfully.",
-            "scene": scene,
-        }
+                camera_angle=request.camera_angle,
+
+                transition=request.transition,
+
+                media_id=request.media_id,
+
+                status=request.status,
+
+            )
+
+            db.add(scene)
+
+            db.commit()
+
+            db.refresh(scene)
+
+            return {
+
+                "success": True,
+
+                "message": "Scene created successfully.",
+
+                "scene": scene,
+
+            }
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
 
     # ==========================================================
     # Generate Scenes From AI
@@ -69,52 +102,97 @@ class SceneService:
         ai_data: dict,
     ):
 
-        scenes = ai_data.get("scenes", [])
+        try:
 
-        created = []
+            created_scenes = []
 
-        for index, item in enumerate(scenes, start=1):
+            scenes = ai_data.get("scenes", [])
 
-            scene = Scene(
+            for index, item in enumerate(scenes, start=1):
 
-                user_id=user_id,
+                scene = Scene(
 
-                project_id=project_id,
+                    user_id=user_id,
 
-                content_id=content_id,
+                    project_id=project_id,
 
-                scene_number=item.get(
-                    "scene_number",
-                    item.get("scene", index),
-                ),
+                    content_id=content_id,
 
-                text=item.get("text", ""),
+                    scene_number=item.get(
+                        "scene_number",
+                        index,
+                    ),
 
-                keyword=item.get("keyword"),
+                    title=item.get("title"),
 
-                media_type=item.get(
-                    "media_type",
-                    "image",
-                ),
+                    text=item.get("text", ""),
 
-                duration=item.get(
-                    "duration",
-                    5,
-                ),
+                    keyword=item.get("keyword"),
 
-                status="pending",
+                    image_prompt=item.get("image_prompt"),
 
-            )
+                    video_prompt=item.get("video_prompt"),
 
-            db.add(scene)
+                    voice_text=item.get("voice_text"),
 
-            created.append(scene)
+                    subtitle=item.get("subtitle"),
 
-        db.flush()
+                    media_type=item.get(
+                        "media_type",
+                        "image",
+                    ),
 
-        return created
+                    duration=item.get(
+                        "duration",
+                        5,
+                    ),
 
-    # ==========================================================
+                    camera_angle=item.get(
+                        "camera_angle",
+                    ),
+
+                    transition=item.get(
+                        "transition",
+                    ),
+
+                    status="pending",
+
+                )
+
+                db.add(scene)
+
+                created_scenes.append(scene)
+
+            db.commit()
+
+            for scene in created_scenes:
+
+                db.refresh(scene)
+
+            return {
+
+                "success": True,
+
+                "message": "Scenes generated successfully.",
+
+                "total": len(created_scenes),
+
+                "scenes": created_scenes,
+
+            }
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+            # ==========================================================
     # Get All Scenes
     # ==========================================================
 
@@ -124,15 +202,23 @@ class SceneService:
         user_id: int,
     ):
 
-        return (
-            db.query(Scene)
-            .filter(Scene.user_id == user_id)
-            .order_by(Scene.scene_number.asc())
-            .all()
-        )
+        try:
+
+            scenes = (
+                db.query(Scene)
+                .filter(Scene.user_id == user_id)
+                .order_by(Scene.scene_number.asc())
+                .all()
+            )
+
+            return scenes
+
+        except SQLAlchemyError:
+
+            return []
 
     # ==========================================================
-    # Get By ID
+    # Get Scene By ID
     # ==========================================================
 
     @staticmethod
@@ -142,17 +228,25 @@ class SceneService:
         user_id: int,
     ):
 
-        return (
-            db.query(Scene)
-            .filter(
-                Scene.id == scene_id,
-                Scene.user_id == user_id,
+        try:
+
+            scene = (
+                db.query(Scene)
+                .filter(
+                    Scene.id == scene_id,
+                    Scene.user_id == user_id,
+                )
+                .first()
             )
-            .first()
-        )
+
+            return scene
+
+        except SQLAlchemyError:
+
+            return None
 
     # ==========================================================
-    # Get Project Scenes
+    # Get Scenes By Project
     # ==========================================================
 
     @staticmethod
@@ -162,18 +256,26 @@ class SceneService:
         user_id: int,
     ):
 
-        return (
-            db.query(Scene)
-            .filter(
-                Scene.project_id == project_id,
-                Scene.user_id == user_id,
+        try:
+
+            scenes = (
+                db.query(Scene)
+                .filter(
+                    Scene.project_id == project_id,
+                    Scene.user_id == user_id,
+                )
+                .order_by(Scene.scene_number.asc())
+                .all()
             )
-            .order_by(Scene.scene_number.asc())
-            .all()
-        )
+
+            return scenes
+
+        except SQLAlchemyError:
+
+            return []
 
     # ==========================================================
-    # Get Content Scenes
+    # Get Scenes By Content
     # ==========================================================
 
     @staticmethod
@@ -183,17 +285,24 @@ class SceneService:
         user_id: int,
     ):
 
-        return (
-            db.query(Scene)
-            .filter(
-                Scene.content_id == content_id,
-                Scene.user_id == user_id,
-            )
-            .order_by(Scene.scene_number.asc())
-            .all()
-        )
+        try:
 
-    # ==========================================================
+            scenes = (
+                db.query(Scene)
+                .filter(
+                    Scene.content_id == content_id,
+                    Scene.user_id == user_id,
+                )
+                .order_by(Scene.scene_number.asc())
+                .all()
+            )
+
+            return scenes
+
+        except SQLAlchemyError:
+
+            return []
+            # ==========================================================
     # Update Scene
     # ==========================================================
 
@@ -205,36 +314,55 @@ class SceneService:
         request: SceneUpdate,
     ):
 
-        scene = (
-            db.query(Scene)
-            .filter(
-                Scene.id == scene_id,
-                Scene.user_id == user_id,
-            )
-            .first()
-        )
+        try:
 
-        if not scene:
+            scene = (
+                db.query(Scene)
+                .filter(
+                    Scene.id == scene_id,
+                    Scene.user_id == user_id,
+                )
+                .first()
+            )
+
+            if not scene:
+
+                return {
+                    "success": False,
+                    "message": "Scene not found.",
+                }
+
+            data = request.model_dump(exclude_unset=True)
+
+            for key, value in data.items():
+
+                setattr(scene, key, value)
+
+            db.commit()
+
+            db.refresh(scene)
 
             return {
-                "success": False,
-                "message": "Scene not found.",
+
+                "success": True,
+
+                "message": "Scene updated successfully.",
+
+                "scene": scene,
+
             }
 
-        data = request.model_dump(exclude_unset=True)
+        except SQLAlchemyError as e:
 
-        for key, value in data.items():
-            setattr(scene, key, value)
+            db.rollback()
 
-        db.commit()
+            return {
 
-        db.refresh(scene)
+                "success": False,
 
-        return {
-            "success": True,
-            "message": "Scene updated successfully.",
-            "scene": scene,
-        }
+                "message": str(e),
+
+            }
 
     # ==========================================================
     # Delete Scene
@@ -247,27 +375,131 @@ class SceneService:
         user_id: int,
     ):
 
-        scene = (
-            db.query(Scene)
-            .filter(
-                Scene.id == scene_id,
-                Scene.user_id == user_id,
-            )
-            .first()
-        )
+        try:
 
-        if not scene:
+            scene = (
+                db.query(Scene)
+                .filter(
+                    Scene.id == scene_id,
+                    Scene.user_id == user_id,
+                )
+                .first()
+            )
+
+            if not scene:
+
+                return {
+                    "success": False,
+                    "message": "Scene not found.",
+                }
+
+            db.delete(scene)
+
+            db.commit()
 
             return {
-                "success": False,
-                "message": "Scene not found.",
+
+                "success": True,
+
+                "message": "Scene deleted successfully.",
+
             }
 
-        db.delete(scene)
+        except SQLAlchemyError as e:
 
-        db.commit()
+            db.rollback()
 
-        return {
-            "success": True,
-            "message": "Scene deleted successfully.",
-        }
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+
+    # ==========================================================
+    # Delete All Scenes of Project
+    # ==========================================================
+
+    @staticmethod
+    def delete_project_scenes(
+        db: Session,
+        project_id: int,
+        user_id: int,
+    ):
+
+        try:
+
+            scenes = (
+                db.query(Scene)
+                .filter(
+                    Scene.project_id == project_id,
+                    Scene.user_id == user_id,
+                )
+                .all()
+            )
+
+            for scene in scenes:
+
+                db.delete(scene)
+
+            db.commit()
+
+            return {
+
+                "success": True,
+
+                "message": "All project scenes deleted successfully.",
+
+                "deleted": len(scenes),
+
+            }
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            return {
+
+                "success": False,
+
+                "message": str(e),
+
+            }
+
+    # ==========================================================
+    # Update Scene Status
+    # ==========================================================
+
+    @staticmethod
+    def update_status(
+        db: Session,
+        scene_id: int,
+        status: str,
+    ):
+
+        try:
+
+            scene = (
+                db.query(Scene)
+                .filter(Scene.id == scene_id)
+                .first()
+            )
+
+            if not scene:
+
+                return None
+
+            scene.status = status
+
+            db.commit()
+
+            db.refresh(scene)
+
+            return scene
+
+        except SQLAlchemyError:
+
+            db.rollback()
+
+            return None

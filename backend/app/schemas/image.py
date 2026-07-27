@@ -5,10 +5,10 @@ from pydantic import BaseModel, ConfigDict
 
 
 # ==========================================================
-# Generate Voice
+# Generate Image
 # ==========================================================
 
-class VoiceCreate(BaseModel):
+class ImageCreate(BaseModel):
 
     project_id: int
 
@@ -16,40 +16,36 @@ class VoiceCreate(BaseModel):
 
     scene_id: int
 
-    provider: str = "edge-tts"
+    provider: str = "pollinations"
 
-    voice: str = "en-US-AriaNeural"
+    model: Optional[str] = None
 
-    gender: Optional[str] = "Female"
+    prompt: str
 
-    language: str = "English"
+    negative_prompt: Optional[str] = None
 
-    speed: str = "+0%"
+    width: int = 1024
 
-    pitch: str = "+0Hz"
-
-    text: str
+    height: int = 1024
 
 
 # ==========================================================
-# Update Voice
+# Update Image
 # ==========================================================
 
-class VoiceUpdate(BaseModel):
+class ImageUpdate(BaseModel):
 
     provider: Optional[str] = None
 
-    voice: Optional[str] = None
+    model: Optional[str] = None
 
-    gender: Optional[str] = None
+    prompt: Optional[str] = None
 
-    language: Optional[str] = None
+    negative_prompt: Optional[str] = None
 
-    speed: Optional[str] = None
+    width: Optional[int] = None
 
-    pitch: Optional[str] = None
-
-    text: Optional[str] = None
+    height: Optional[int] = None
 
     status: Optional[str] = None
 
@@ -57,10 +53,10 @@ class VoiceUpdate(BaseModel):
 
 
 # ==========================================================
-# Voice Response
+# Image Response
 # ==========================================================
 
-class VoiceResponse(BaseModel):
+class ImageResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,25 +72,21 @@ class VoiceResponse(BaseModel):
 
     provider: str
 
-    voice: str
+    model: Optional[str]
 
-    gender: Optional[str]
+    prompt: str
 
-    language: str
+    negative_prompt: Optional[str]
 
-    speed: str
+    image_name: Optional[str]
 
-    pitch: str
+    image_path: Optional[str]
 
-    text: str
+    image_url: Optional[str]
 
-    audio_name: Optional[str]
+    width: int
 
-    audio_path: Optional[str]
-
-    audio_url: Optional[str]
-
-    duration: float
+    height: int
 
     file_size: Optional[int]
 
@@ -108,36 +100,36 @@ class VoiceResponse(BaseModel):
 
 
 # ==========================================================
-# Generate Voice Response
+# Generate Image Response
 # ==========================================================
 
-class VoiceCreateResponse(BaseModel):
+class ImageCreateResponse(BaseModel):
 
     success: bool
 
     message: str
 
-    voice: VoiceResponse
+    image: ImageResponse
 
 
 # ==========================================================
-# Voice List Response
+# Image List Response
 # ==========================================================
 
-class VoiceListResponse(BaseModel):
+class ImageListResponse(BaseModel):
 
     success: bool
 
     total: int
 
-    voices: list[VoiceResponse]
+    images: list[ImageResponse]
 
 
 # ==========================================================
 # Generic Message
 # ==========================================================
 
-class VoiceMessage(BaseModel):
+class ImageMessage(BaseModel):
 
     success: bool
 

@@ -15,6 +15,8 @@ from app.api.downloader import router as downloader_router
 from app.api.voice import router as voice_router
 from app.api.render import router as render_router
 from app.api.subtitle import router as subtitle_router
+from app.api.project_render import router as project_render_router
+
 
 from app import models
 
@@ -80,6 +82,7 @@ app.include_router(voice_router)
 app.include_router(render_router)
 
 app.include_router(subtitle_router)
+app.include_router(project_render_router)
 
 
 # ==========================================================

@@ -11,6 +11,10 @@ from app.core.pexels_client import PexelsClient
 
 class DownloaderService:
 
+    # ==========================================================
+    # Download Scene Media
+    # ==========================================================
+
     @staticmethod
     def download(
         db: Session,
@@ -22,81 +26,195 @@ class DownloaderService:
         # ======================================================
 
         scene = (
+
             db.query(Scene)
-            .filter(Scene.id == scene_id)
+
+            .filter(
+                Scene.id == scene_id,
+            )
+
             .first()
+
         )
 
         if not scene:
 
             raise HTTPException(
+
                 status_code=404,
+
                 detail="Scene not found.",
+
             )
+
+        # ======================================================
+        # Validate Keyword
+        # ======================================================
 
         if not scene.keyword:
 
             raise HTTPException(
+
                 status_code=400,
+
                 detail="Scene keyword is missing.",
+
             )
+
+        # ======================================================
+        # Already Downloaded?
+        # ======================================================
+
+        if scene.media_id:
+
+            media = (
+
+                db.query(Media)
+
+                .filter(
+                    Media.id == scene.media_id,
+                )
+
+                .first()
+
+            )
+
+            if media:
+
+                return {
+
+                    "success": True,
+
+                    "scene_id": scene.id,
+
+                    "media_id": media.id,
+
+                    "provider": media.provider,
+
+                    "title": media.title,
+
+                    "file_name": media.file_name,
+
+                    "file_path": media.file_path,
+
+                    "file_url": media.file_url,
+
+                    "status": media.status,
+
+                }
 
         # ======================================================
         # Storage Folder
         # ======================================================
 
         folder = os.path.join(
+
             "storage",
+
             "projects",
+
             str(scene.project_id),
+
         )
 
         if scene.media_type == "image":
 
-            folder = os.path.join(folder, "images")
+            folder = os.path.join(
+                folder,
+                "images",
+            )
 
         else:
 
-            folder = os.path.join(folder, "videos")
+            folder = os.path.join(
+                folder,
+                "videos",
+            )
 
-        os.makedirs(folder, exist_ok=True)
+        os.makedirs(
+
+            folder,
+
+            exist_ok=True,
+
+        )
 
         # ======================================================
         # File Name
         # ======================================================
 
-        extension = ".jpg" if scene.media_type == "image" else ".mp4"
+        extension = (
+
+            ".jpg"
+
+            if scene.media_type == "image"
+
+            else ".mp4"
+
+        )
 
         filename = f"scene_{scene.scene_number}{extension}"
 
         filepath = os.path.join(
+
             folder,
+
             filename,
+
         )
 
-        # ======================================================
+                # ======================================================
         # Download From Pexels
         # ======================================================
 
-        media = PexelsClient.search_and_download(
+        try:
 
-            keyword=scene.keyword,
+            media = PexelsClient.search_and_download(
 
-            media_type=scene.media_type,
+                keyword=scene.keyword,
 
-            save_path=filepath,
+                media_type=scene.media_type,
 
-        )
+                save_path=filepath,
+
+            )
+
+        except Exception as e:
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail=f"Pexels download failed : {str(e)}",
+
+            )
+
+        # ======================================================
+        # Validate Download
+        # ======================================================
 
         if not media:
 
             raise HTTPException(
+
                 status_code=404,
+
                 detail="No media found from Pexels.",
+
+            )
+
+        if not os.path.exists(media["file_path"]):
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail="Downloaded file not found.",
+
             )
 
         # ======================================================
-        # Save Media
+        # Create Media Record
         # ======================================================
 
         media_record = Media(
@@ -109,47 +227,63 @@ class DownloaderService:
 
             provider=media["provider"],
 
-            title=media["title"],
+            title=f"Scene {scene.scene_number}",
 
             file_name=filename,
 
             file_path=media["file_path"],
 
-            file_url=media["file_url"],
+            file_url=media.get("file_url", ""),
 
             mime_type=media["mime_type"],
 
             extension=media["extension"],
 
-            duration=media["duration"],
+            duration=media.get("duration"),
 
-            width=media["width"],
+            width=media.get("width"),
 
-            height=media["height"],
+            height=media.get("height"),
 
-            file_size=media["file_size"],
+            file_size=media.get("file_size"),
 
             status="ready",
 
         )
 
-        db.add(media_record)
-
-        db.flush()
-
-        # ======================================================
-        # Update Scene
+                # ======================================================
+        # Save Media + Update Scene
         # ======================================================
 
-        scene.media_id = media_record.id
+        try:
 
-        scene.status = "downloaded"
+            db.add(media_record)
 
-        db.commit()
+            db.flush()
 
-        db.refresh(media_record)
+            # Update Scene
 
-        db.refresh(scene)
+            scene.media_id = media_record.id
+
+            scene.status = "downloaded"
+
+            db.commit()
+
+            db.refresh(media_record)
+
+            db.refresh(scene)
+
+        except Exception as e:
+
+            db.rollback()
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail=f"Database error : {str(e)}",
+
+            )
 
         # ======================================================
         # Response
@@ -172,6 +306,8 @@ class DownloaderService:
             "file_path": media_record.file_path,
 
             "file_url": media_record.file_url,
+
+            "media_type": media_record.media_type,
 
             "status": media_record.status,
 

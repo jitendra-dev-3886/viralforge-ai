@@ -3,33 +3,33 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 
-from app.schemas.voice import (
-    VoiceCreate,
-    VoiceUpdate,
+from app.schemas.image import (
+    ImageCreate,
+    ImageUpdate,
 )
 
-from app.services.voice_service import VoiceService
+from app.services.image_service import ImageService
 
 
 router = APIRouter(
-    prefix="/api/voice",
-    tags=["Voice"],
+    prefix="/api/image",
+    tags=["Image"],
 )
 
 
 # ==========================================================
-# Generate Voice
+# Generate Image
 # ==========================================================
 
 @router.post("/generate")
-def generate_voice(
-    request: VoiceCreate,
+def generate_image(
+    request: ImageCreate,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1  # TODO: Replace with authenticated user
 
-    return VoiceService.generate(
+    return ImageService.generate(
         db=db,
         user_id=user_id,
         request=request,
@@ -37,71 +37,72 @@ def generate_voice(
 
 
 # ==========================================================
-# Get Voice By ID
+# Get All Images
 # ==========================================================
 
-@router.get("/{voice_id}")
-def get_voice(
-    voice_id: int,
+@router.get("/")
+def get_all_images(
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    voice = VoiceService.get_by_id(
+    images = ImageService.get_all(
         db=db,
-        voice_id=voice_id,
         user_id=user_id,
     )
 
-    if not voice:
+    return {
+        "success": True,
+        "total": len(images),
+        "images": images,
+    }
+
+
+# ==========================================================
+# Get Image By ID
+# ==========================================================
+
+@router.get("/{image_id}")
+def get_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+):
+
+    user_id = 1
+
+    image = ImageService.get_by_id(
+        db=db,
+        image_id=image_id,
+        user_id=user_id,
+    )
+
+    if not image:
+
         return {
             "success": False,
-            "message": "Voice not found.",
+            "message": "Image not found.",
         }
 
     return {
         "success": True,
-        "voice": voice,
+        "image": image,
     }
 
 
 # ==========================================================
-# Get All Voices
-# ==========================================================
-
-@router.get("/")
-def get_all_voices(
-    db: Session = Depends(get_db),
-):
-
-    user_id = 1
-
-    voices = VoiceService.get_all(
-        db=db,
-        user_id=user_id,
-    )
-
-    return {
-        "success": True,
-        "total": len(voices),
-        "voices": voices,
-    }
-
-
-# ==========================================================
-# Get Project Voices
+# Get Project Images
 # ==========================================================
 
 @router.get("/project/{project_id}")
-def get_project_voices(
+def get_project_images(
     project_id: int,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    voices = VoiceService.get_project(
+    images = ImageService.get_project(
         db=db,
         project_id=project_id,
         user_id=user_id,
@@ -109,84 +110,115 @@ def get_project_voices(
 
     return {
         "success": True,
-        "total": len(voices),
-        "voices": voices,
+        "total": len(images),
+        "images": images,
     }
 
 
 # ==========================================================
-# Get Scene Voice
+# Get Content Images
+# ==========================================================
+
+@router.get("/content/{content_id}")
+def get_content_images(
+    content_id: int,
+    db: Session = Depends(get_db),
+):
+
+    user_id = 1
+
+    images = ImageService.get_content(
+        db=db,
+        content_id=content_id,
+        user_id=user_id,
+    )
+
+    return {
+        "success": True,
+        "total": len(images),
+        "images": images,
+    }
+
+
+# ==========================================================
+# Get Scene Images
 # ==========================================================
 
 @router.get("/scene/{scene_id}")
-def get_scene_voice(
+def get_scene_images(
     scene_id: int,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    return VoiceService.get_scene(
+    images = ImageService.get_scene(
         db=db,
         scene_id=scene_id,
         user_id=user_id,
     )
 
+    return {
+        "success": True,
+        "total": len(images),
+        "images": images,
+    }
+
 
 # ==========================================================
-# Update Voice
+# Update Image
 # ==========================================================
 
-@router.put("/{voice_id}")
-def update_voice(
-    voice_id: int,
-    request: VoiceUpdate,
+@router.put("/{image_id}")
+def update_image(
+    image_id: int,
+    request: ImageUpdate,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    return VoiceService.update(
+    return ImageService.update(
         db=db,
-        voice_id=voice_id,
+        image_id=image_id,
         user_id=user_id,
         request=request,
     )
 
 
 # ==========================================================
-# Delete Voice
+# Delete Image
 # ==========================================================
 
-@router.delete("/{voice_id}")
-def delete_voice(
-    voice_id: int,
+@router.delete("/{image_id}")
+def delete_image(
+    image_id: int,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    return VoiceService.delete(
+    return ImageService.delete(
         db=db,
-        voice_id=voice_id,
+        image_id=image_id,
         user_id=user_id,
     )
 
 
 # ==========================================================
-# Regenerate Voice
+# Regenerate Image
 # ==========================================================
 
-@router.post("/{voice_id}/regenerate")
-def regenerate_voice(
-    voice_id: int,
+@router.post("/{image_id}/regenerate")
+def regenerate_image(
+    image_id: int,
     db: Session = Depends(get_db),
 ):
 
     user_id = 1
 
-    return VoiceService.regenerate(
+    return ImageService.regenerate(
         db=db,
-        voice_id=voice_id,
+        image_id=image_id,
         user_id=user_id,
     )

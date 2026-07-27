@@ -154,3 +154,10 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    images = relationship(
+        "Image",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )

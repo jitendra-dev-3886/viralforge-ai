@@ -139,3 +139,15 @@ class Content(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    voices = relationship(
+        "Voice",
+        back_populates="content",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    images = relationship(
+        "Image",
+        back_populates="content",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )

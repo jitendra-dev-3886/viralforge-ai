@@ -9,6 +9,8 @@ from .subscription import Subscription
 from .usage import Usage
 from .api_setting import ApiSetting
 from .scene import Scene
+from .voice import Voice
+from .image import Image
 
 __all__ = [
     "User",
@@ -21,4 +23,9 @@ __all__ = [
     "Subscription",
     "Usage",
     "ApiSetting",
+    "Scene",
+    "Voice",
+    "Image",
+
+    
 ]

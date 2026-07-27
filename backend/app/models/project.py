@@ -153,3 +153,16 @@ class Project(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    voices = relationship(
+        "Voice",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    images = relationship(
+        "Image",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )

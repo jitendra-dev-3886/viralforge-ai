@@ -13,7 +13,7 @@ from app.services.scene_service import SceneService
 
 router = APIRouter(
     prefix="/api/scenes",
-    tags=["Scene"],
+    tags=["Scenes"],
 )
 
 
@@ -25,18 +25,49 @@ router = APIRouter(
 def create_scene(
     request: SceneCreate,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default value to prevent 422
 ):
 
-    # NOTE: If your frontend is actually sending user_id inside the JSON body,
-    # you can remove `user_id: int = 1` above and change the line below to:
-    # user_id=request.user_id 
-    
+    # TODO:
+    # Replace with authenticated user
+    user_id = 1
+
     return SceneService.create(
         db=db,
         user_id=user_id,
         request=request,
     )
+
+
+# ==========================================================
+# Generate AI Scenes
+# ==========================================================
+
+@router.post("/generate")
+def generate_scenes(
+    project_id: int,
+    content_id: int,
+    ai_data: dict,
+    db: Session = Depends(get_db),
+):
+
+    user_id = 1
+
+    scenes = SceneService.generate(
+        db=db,
+        project_id=project_id,
+        content_id=content_id,
+        user_id=user_id,
+        ai_data=ai_data,
+    )
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Scenes generated successfully.",
+        "total": len(scenes),
+        "scenes": scenes,
+    }
 
 
 # ==========================================================
@@ -46,8 +77,9 @@ def create_scene(
 @router.get("/")
 def get_all_scenes(
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
+
+    user_id = 1
 
     scenes = SceneService.get_all(
         db=db,
@@ -69,14 +101,26 @@ def get_all_scenes(
 def get_scene(
     scene_id: int,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
 
-    return SceneService.get_by_id(
+    user_id = 1
+
+    scene = SceneService.get_by_id(
         db=db,
         scene_id=scene_id,
         user_id=user_id,
     )
+
+    if not scene:
+        return {
+            "success": False,
+            "message": "Scene not found.",
+        }
+
+    return {
+        "success": True,
+        "scene": scene,
+    }
 
 
 # ==========================================================
@@ -87,8 +131,9 @@ def get_scene(
 def get_project_scenes(
     project_id: int,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
+
+    user_id = 1
 
     scenes = SceneService.get_project_scenes(
         db=db,
@@ -111,8 +156,9 @@ def get_project_scenes(
 def get_content_scenes(
     content_id: int,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
+
+    user_id = 1
 
     scenes = SceneService.get_content_scenes(
         db=db,
@@ -136,8 +182,9 @@ def update_scene(
     scene_id: int,
     request: SceneUpdate,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
+
+    user_id = 1
 
     return SceneService.update(
         db=db,
@@ -155,8 +202,9 @@ def update_scene(
 def delete_scene(
     scene_id: int,
     db: Session = Depends(get_db),
-    user_id: int = 1,  # <-- Added default
 ):
+
+    user_id = 1
 
     return SceneService.delete(
         db=db,
