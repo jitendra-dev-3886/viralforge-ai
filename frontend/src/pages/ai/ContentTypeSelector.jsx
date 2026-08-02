@@ -42,10 +42,10 @@ export default function ContentTypeSelector({
   if (selectedPlatforms.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-      <h2 className="text-xl font-bold">
-        Content Types
+      <h2 className="text-lg font-semibold text-slate-900">
+        2. Choose formats
       </h2>
 
       <p className="text-slate-500 mt-1 mb-6">
@@ -54,13 +54,13 @@ export default function ContentTypeSelector({
 
       {selectedPlatforms.map((platform) => (
 
-        <div key={platform} className="mb-8">
+        <div key={platform} className="mb-5 last:mb-0">
 
-          <h3 className="font-bold capitalize text-lg mb-4">
+          <h3 className="mb-3 text-sm font-semibold capitalize text-slate-700">
             {platform}
           </h3>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
 
             {contentMap[platform].map((item) => {
 
@@ -75,19 +75,19 @@ export default function ContentTypeSelector({
                   type="button"
                   onClick={() => toggleContent(platform, item.id)}
                   className={`
-                    p-4
-                    rounded-2xl
-                    border-2
+                    p-3
+                    rounded-xl
+                    border
                     transition
 
                     ${
                       active
-                        ? "border-indigo-600 bg-indigo-50"
+                        ? "border-blue-600 bg-blue-50 text-blue-900"
                         : "border-slate-200 hover:border-indigo-400"
                     }
                   `}
                 >
-                  <div className="font-semibold">
+                  <div className="text-sm font-medium">
                     {item.name}
                   </div>
 
@@ -107,6 +107,6 @@ export default function ContentTypeSelector({
 
       ))}
 
-    </div>
+    </section>
   );
 }

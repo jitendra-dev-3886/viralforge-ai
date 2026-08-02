@@ -34,17 +34,17 @@ export default function PlatformSelector({
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-      <h2 className="text-xl font-bold text-slate-800">
-        Select Platform
+      <h2 className="text-lg font-semibold text-slate-900">
+        1. Choose channels
       </h2>
 
       <p className="text-slate-500 mt-1 mb-6">
         Choose one or more platforms.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
         {platforms.map((platform) => {
 
@@ -58,50 +58,50 @@ export default function PlatformSelector({
               type="button"
               onClick={() => togglePlatform(platform.id)}
               className={`
-                rounded-2xl
-                border-2
+                rounded-xl
+                border
                 transition-all
                 duration-300
-                p-6
+                p-4
                 text-left
-                hover:scale-105
+                hover:-translate-y-0.5
 
                 ${
                   active
-                    ? "border-indigo-600 shadow-xl bg-indigo-50"
-                    : "border-slate-200 hover:border-indigo-300 bg-white"
+                    ? "border-blue-600 bg-blue-50 shadow-sm"
+                    : "border-slate-200 hover:border-blue-300 bg-white"
                 }
               `}
             >
 
               <div
                 className={`
-                  w-14
-                  h-14
-                  rounded-xl
+                  w-10
+                  h-10
+                  rounded-lg
                   bg-gradient-to-r
                   ${platform.color}
                   flex
                   items-center
                   justify-center
                   text-white
-                  text-3xl
+                  text-xl
                 `}
               >
                 <Icon />
               </div>
 
-              <h3 className="mt-5 text-lg font-bold">
+              <h3 className="mt-3 text-sm font-semibold text-slate-900">
                 {platform.name}
               </h3>
 
-              <p className="text-slate-500 text-sm mt-1">
+              <p className="text-slate-500 text-xs mt-1">
                 Generate optimized content
               </p>
 
               {active && (
-                <div className="mt-5">
-                  <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs">
+                <div className="mt-3">
+                  <span className="bg-blue-600 text-white px-2.5 py-1 rounded-full text-xs">
                     Selected
                   </span>
                 </div>
@@ -114,6 +114,6 @@ export default function PlatformSelector({
 
       </div>
 
-    </div>
+    </section>
   );
 }

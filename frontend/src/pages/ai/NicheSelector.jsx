@@ -31,41 +31,43 @@ export default function NicheSelector({
     onChange,
 }) {
     return (
-        <div className="mt-8">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            <h2 className="text-2xl font-bold mb-5">
-                Select Niche
+            <h2 className="mb-1 text-lg font-semibold text-slate-900">
+                3. Choose a niche
             </h2>
+            <p className="mb-4 text-sm text-slate-500">This guides the voice, hooks, and examples used in the output.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
 
                 {niches.map((niche) => (
 
-                    <div
+                    <button
+                        type="button"
                         key={niche.id}
                         onClick={() => onChange(niche.id)}
-                        className={`cursor-pointer rounded-2xl border-2 p-6 transition-all duration-300 text-center
+                        className={`rounded-xl border p-4 text-center transition-all duration-200
                         ${
                             selected === niche.id
-                                ? "border-blue-600 bg-blue-50 shadow-lg"
-                                : "border-gray-200 bg-white hover:border-blue-400 hover:shadow"
+                                ? "border-blue-600 bg-blue-50 shadow-sm"
+                                : "border-slate-200 bg-white hover:border-blue-400"
                         }`}
                     >
 
-                        <div className="text-5xl">
+                        <div className="text-3xl">
                             {niche.icon}
                         </div>
 
-                        <h3 className="mt-4 text-lg font-semibold">
+                        <h3 className="mt-2 text-sm font-medium text-slate-800">
                             {niche.title}
                         </h3>
 
-                    </div>
+                    </button>
 
                 ))}
 
             </div>
 
-        </div>
+        </section>
     );
 }

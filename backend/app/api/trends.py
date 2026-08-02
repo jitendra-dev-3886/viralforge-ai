@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter
 
 from app.services.trend_service import TrendService
@@ -9,6 +11,6 @@ router = APIRouter(
 
 
 @router.get("/")
-def trending():
+def trending(niche: Optional[str] = None):
 
-    return TrendService.get_trending()
+    return TrendService.get_trending(niche=niche)

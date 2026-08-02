@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.core.security import get_current_user_id
 
 from app.schemas.voice import (
     VoiceCreate,
@@ -22,14 +23,12 @@ router = APIRouter(
 # ==========================================================
 
 @router.post("/generate")
-def generate_voice(
+async def generate_voice(
     request: VoiceCreate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1  # TODO: Replace with authenticated user
-
-    return VoiceService.generate(
+    return await VoiceService.generate(
         db=db,
         user_id=user_id,
         request=request,
@@ -44,10 +43,8 @@ def generate_voice(
 def get_voice(
     voice_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     voice = VoiceService.get_by_id(
         db=db,
         voice_id=voice_id,
@@ -73,10 +70,8 @@ def get_voice(
 @router.get("/")
 def get_all_voices(
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     voices = VoiceService.get_all(
         db=db,
         user_id=user_id,
@@ -97,10 +92,8 @@ def get_all_voices(
 def get_project_voices(
     project_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     voices = VoiceService.get_project(
         db=db,
         project_id=project_id,
@@ -122,10 +115,8 @@ def get_project_voices(
 def get_scene_voice(
     scene_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return VoiceService.get_scene(
         db=db,
         scene_id=scene_id,
@@ -142,10 +133,8 @@ def update_voice(
     voice_id: int,
     request: VoiceUpdate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return VoiceService.update(
         db=db,
         voice_id=voice_id,
@@ -162,10 +151,8 @@ def update_voice(
 def delete_voice(
     voice_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return VoiceService.delete(
         db=db,
         voice_id=voice_id,
@@ -178,14 +165,12 @@ def delete_voice(
 # ==========================================================
 
 @router.post("/{voice_id}/regenerate")
-def regenerate_voice(
+async def regenerate_voice(
     voice_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
-    return VoiceService.regenerate(
+    return await VoiceService.regenerate(
         db=db,
         voice_id=voice_id,
         user_id=user_id,

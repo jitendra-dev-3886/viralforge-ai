@@ -7,6 +7,7 @@ from app.models.scene import Scene
 from app.models.media import Media
 
 from app.core.pexels_client import PexelsClient
+from app.core.pixabay_client import PixabayClient
 
 
 class DownloaderService:
@@ -48,16 +49,42 @@ class DownloaderService:
             )
 
         # ======================================================
-        # Validate Keyword
+        # Resolve Search Keyword
         # ======================================================
 
-        if not scene.keyword:
+        scene_media_type = (scene.media_type or "").lower()
+
+        if scene_media_type == "image":
+            search_keyword = (
+                scene.image_prompt
+                or scene.keyword
+                or scene.video_prompt
+            )
+        elif scene_media_type == "video":
+            search_keyword = (
+                scene.video_prompt
+                or scene.keyword
+                or scene.image_prompt
+            )
+        else:
+            search_keyword = (
+                scene.image_prompt
+                or scene.keyword
+                or scene.video_prompt
+            )
+
+        if isinstance(search_keyword, (list, tuple)):
+            search_keyword = " ".join(str(item) for item in search_keyword)
+
+        search_keyword = str(search_keyword or "").strip()
+
+        if not search_keyword:
 
             raise HTTPException(
 
                 status_code=400,
 
-                detail="Scene keyword is missing.",
+                detail="Scene keyword or prompt is missing.",
 
             )
 
@@ -117,7 +144,9 @@ class DownloaderService:
 
         )
 
-        if scene.media_type == "image":
+        media_type = (scene.media_type or "").lower()
+
+        if media_type == "image":
 
             folder = os.path.join(
                 folder,
@@ -144,13 +173,9 @@ class DownloaderService:
         # ======================================================
 
         extension = (
-
             ".jpg"
-
-            if scene.media_type == "image"
-
+            if media_type == "image"
             else ".mp4"
-
         )
 
         filename = f"scene_{scene.scene_number}{extension}"
@@ -164,30 +189,32 @@ class DownloaderService:
         )
 
                 # ======================================================
-        # Download From Pexels
+        # Download From Pexels or Pixabay
         # ======================================================
 
+        media = None
+
         try:
-
             media = PexelsClient.search_and_download(
-
-                keyword=scene.keyword,
-
-                media_type=scene.media_type,
-
+                keyword=search_keyword,
+                media_type=media_type,
                 save_path=filepath,
-
             )
+        except Exception:
+            media = None
 
-        except Exception as e:
-
-            raise HTTPException(
-
-                status_code=500,
-
-                detail=f"Pexels download failed : {str(e)}",
-
-            )
+        if not media:
+            try:
+                media = PixabayClient.search_and_download(
+                    keyword=search_keyword,
+                    media_type=media_type,
+                    save_path=filepath,
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Media download failed : {str(e)}",
+                )
 
         # ======================================================
         # Validate Download
@@ -199,7 +226,7 @@ class DownloaderService:
 
                 status_code=404,
 
-                detail="No media found from Pexels.",
+                detail="No media found from Pexels or Pixabay.",
 
             )
 

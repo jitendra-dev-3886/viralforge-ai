@@ -1,8 +1,11 @@
 import axios from "axios";
 
-const api = axios.create({
+// Vite only exposes environment variables prefixed with VITE_. Supplying a
+// local default keeps the app usable when no frontend/.env file exists.
+const apiOrigin = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-    baseURL: `${import.meta.env.VITE_API_BASE_URL}/api`,
+const api = axios.create({
+    baseURL: `${apiOrigin.replace(/\/$/, "")}/api`,
 
     headers:{
         "Content-Type":"application/json",

@@ -161,3 +161,8 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    voices = relationship(
+        "Voice",
+        back_populates="user",
+    )

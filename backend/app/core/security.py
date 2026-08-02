@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 
-from jose import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 # ==========================================
@@ -10,6 +12,8 @@ from passlib.context import CryptContext
 SECRET_KEY = "viralforge-ai-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 Days
+
+bearer_scheme = HTTPBearer()
 
 # ==========================================
 # Password Hashing
@@ -65,3 +69,21 @@ def decode_access_token(token: str):
         SECRET_KEY,
         algorithms=[ALGORITHM],
     )
+
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> int:
+    """Return the authenticated user's ID from a valid Bearer token."""
+    try:
+        payload = decode_access_token(credentials.credentials)
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise ValueError("Token does not contain a user ID")
+        return int(user_id)
+    except (JWTError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

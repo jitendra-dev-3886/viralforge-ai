@@ -100,6 +100,7 @@ class SceneService:
         content_id: int,
         user_id: int,
         ai_data: dict,
+        package: str = "",
     ):
 
         try:
@@ -158,6 +159,10 @@ class SceneService:
                     status="pending",
 
                 )
+
+                # Force carousel package scenes to image only during persistence
+                if (package or "").lower() == "carousel":
+                    scene.media_type = "image"
 
                 db.add(scene)
 

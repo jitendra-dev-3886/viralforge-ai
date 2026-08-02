@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.voice import Voice
-from app.schemas.voice import VoiceCreate
+from app.models.content import Content
+from app.models.project import Project
+from app.models.scene import Scene
+from app.schemas.voice import VoiceCreate, VoiceUpdate
+
 
 
 class VoiceService:
@@ -26,6 +30,28 @@ class VoiceService:
     ):
 
         try:
+
+            project = db.query(Project).filter(
+                Project.id == request.project_id,
+                Project.user_id == user_id,
+            ).first()
+            content = db.query(Content).filter(
+                Content.id == request.content_id,
+                Content.user_id == user_id,
+                Content.project_id == request.project_id,
+            ).first()
+            scene = db.query(Scene).filter(
+                Scene.id == request.scene_id,
+                Scene.user_id == user_id,
+                Scene.project_id == request.project_id,
+                Scene.content_id == request.content_id,
+            ).first()
+
+            if not project or not content or not scene:
+                return {
+                    "success": False,
+                    "message": "Select a valid project, content, and scene.",
+                }
 
             # ==========================================
             # Create Audio Folder

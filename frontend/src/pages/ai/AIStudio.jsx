@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { generateContent } from "../../api/ai";
+import { useProject } from "../../context/ProjectContext";
 import NicheSelector from "./NicheSelector";
 import TrendingTopics from "./TrendingTopics";
 import PackageSelector from "./PackageSelector";
@@ -17,83 +18,232 @@ export default function AIStudio() {
     const [selectedTopic, setSelectedTopic] = useState("");
 
     const [selectedPackage, setSelectedPackage] = useState("complete");
+    const [selectedProvider, setSelectedProvider] = useState("auto");
 
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
     const [generatedContent, setGeneratedContent] = useState(null);
+    const [selectedProjectId, setSelectedProjectId] = useState(null);
 
+    const { projects } = useProject();
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [selectedContent, setSelectedContent] = useState([]);
 
-   const handleGenerate = async () => {
+    const isReady = Boolean(
+        selectedProjectId
+        && selectedPlatforms.length
+        && selectedContent.length
+        && selectedNiche
+        && selectedTopic.trim(),
+    );
 
-    if (selectedPlatforms.length === 0) {
-        alert("Please select at least one platform.");
-        return;
-    }
+    const formatPlatformLabel = (platform) => {
+        const labels = {
+            instagram: "Instagram",
+            facebook: "Facebook",
+            youtube: "YouTube",
+        };
+        return labels[platform] || platform;
+    };
 
-    if (selectedContent.length === 0) {
-        alert("Please select at least one content type.");
-        return;
-    }
-
-    if (!selectedNiche) {
-        alert("Please select a niche.");
-        return;
-    }
-
-    if (!selectedTopic.trim()) {
-        alert("Please select or enter a topic.");
-        return;
-    }
-
-    setLoading(true);
-
-    try {
-
-        const payload = {
-
-            platforms: selectedPlatforms,
-
-            content_types: selectedContent,
-
-            niche: selectedNiche,
-
-            topic: selectedTopic,
-
-            package: selectedPackage,
-
+    const formatContentTypeLabel = (value) => {
+        const [platform, type] = value.split(":");
+        const typeLabels = {
+            reel: "Reel",
+            carousel: "Carousel",
+            story: "Story",
+            post: "Post",
+            quote: "Quote",
+            shorts: "Shorts",
+            video: "Long Video",
+            community: "Community Post",
         };
 
-        console.log(payload);
+        const platformLabel = formatPlatformLabel(platform);
+        const typeLabel = typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1);
 
-        const response = await generateContent(payload);
+        return `${platformLabel} ${typeLabel}`;
+    };
 
-        setGeneratedContent(response);
+    const formatContentTypePrompt = (value) => {
+        const [, type] = value.split(":");
+        const typeLabels = {
+            reel: "Reel",
+            carousel: "Carousel",
+            story: "Story",
+            post: "Post",
+            quote: "Quote",
+            shorts: "Shorts",
+            video: "Long Video",
+            community: "Community Post",
+        };
+        return typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1);
+    };
 
-    } catch (err) {
+    const handleGenerate = async () => {
 
-        console.log(err);
+        if (!selectedProjectId) {
+            setError("Select a project before generating content.");
+            return;
+        }
 
-        alert("Generation failed.");
+        if (selectedPlatforms.length === 0) {
+            setError("Select at least one platform.");
+            return;
+        }
 
-    } finally {
+        if (selectedContent.length === 0) {
+            setError("Select at least one content type.");
+            return;
+        }
 
-        setLoading(false);
+        if (!selectedNiche) {
+            setError("Select a niche to tailor the generated content.");
+            return;
+        }
 
-    }
+        if (!selectedTopic.trim()) {
+            setError("Choose or enter a topic before generating content.");
+            return;
+        }
 
-};
+        setLoading(true);
+        setError("");
+
+        setGeneratedContent(null);
+
+        try {
+
+            const payload = {
+                project_id: selectedProjectId,
+                platforms: selectedPlatforms.map(formatPlatformLabel),
+                content_types: Array.from(
+                    new Set(selectedContent.map(formatContentTypePrompt)),
+                ),
+                outputs: selectedContent.map((item) => {
+                    const [platform, type] = item.split(":");
+                    return `${formatPlatformLabel(platform)}: ${formatContentTypePrompt(item)}`;
+                }),
+                niche: selectedNiche,
+                topic: selectedTopic,
+                package: selectedPackage,
+                provider: selectedProvider,
+            };
+
+            const response = await generateContent(payload);
+
+            setGeneratedContent(response);
+
+        } catch (error) {
+
+            console.error(error);
+
+            let message = "Something went wrong.";
+
+            if (error.response) {
+
+                const data = error.response.data;
+
+                if (Array.isArray(data.detail)) {
+
+                    message = data.detail
+                        .map(item => item.msg)
+                        .join("\n");
+
+                } else if (typeof data.detail === "string") {
+
+                    message = data.detail;
+
+                } else if (data.detail?.message) {
+
+                    message = data.detail.message;
+
+                } else {
+
+                    message = "Server Error.";
+                }
+
+            } else if (error.request) {
+
+                message = "Cannot connect to backend server.";
+
+            } else if (error.message) {
+
+                message = error.message;
+
+            }
+
+            setError(message);
+
+        } finally {
+
+            setLoading(false);
+
+        }
+
+    };
+
+    useEffect(() => {
+        if (!selectedProjectId && projects.length > 0) {
+            setSelectedProjectId(projects[0].id);
+        }
+    }, [projects, selectedProjectId]);
+
+    useEffect(() => {
+        setSelectedContent((current) => current.filter((item) => (
+            selectedPlatforms.includes(item.split(":")[0])
+        )));
+    }, [selectedPlatforms]);
 
     return (
 
-        <div className="p-8">
+        <div className="mx-auto max-w-6xl pb-10">
 
-            <h1 className="text-3xl font-bold mb-8">
-                AI Studio
-            </h1>
+            <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p className="text-sm font-semibold text-blue-600">CONTENT CREATION</p>
+                    <h1 className="mt-1 text-3xl font-bold text-slate-900">Generate content</h1>
+                    <p className="mt-2 text-slate-500">Create platform-ready scripts, captions, and scenes in one workflow.</p>
+                </div>
+                <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
+                    {selectedContent.length} output{selectedContent.length === 1 ? "" : "s"} selected
+                </div>
+            </div>
 
-              {/* 1️⃣ Platform */}
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Project
+                </label>
+                <select
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    value={selectedProjectId || ""}
+                    onChange={(event) => setSelectedProjectId(Number(event.target.value))}
+                >
+                    <option value="" disabled>
+                        Select a project
+                    </option>
+                    {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                            {project.title}
+                        </option>
+                    ))}
+                </select>
+
+                {projects.length === 0 && (
+                    <p className="mt-3 text-sm text-slate-500">
+                        No projects available. Create a project first on the Projects page.
+                    </p>
+                )}
+            </div>
+
+            {error && (
+                <div role="alert" className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                    {error}
+                </div>
+            )}
+
+              {/* Platform */}
         <PlatformSelector
             selected={selectedPlatforms}
             onChange={setSelectedPlatforms}
@@ -111,6 +261,7 @@ export default function AIStudio() {
             />
 
             <TrendingTopics
+                niche={selectedNiche}
                 onSelect={setSelectedTopic}
             />
 
@@ -127,6 +278,29 @@ export default function AIStudio() {
                 onChange={setSelectedPackage}
             />
 
+            <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
+                <h2 className="text-xl font-bold">Provider</h2>
+                <p className="text-slate-500 mt-2 mb-4">
+                    Select the AI provider or fallback strategy.
+                </p>
+                <select
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm"
+                    value={selectedProvider}
+                    onChange={(event) => setSelectedProvider(event.target.value)}
+                >
+                    <option value="auto">
+                        Auto (Groq → LocalAI → llama_cpp)
+                    </option>
+                    <option value="gemini">Gemini only</option>
+                    <option value="groq">Groq only</option>
+                    <option value="localai">LocalAI only</option>
+                    <option value="llama_cpp">Local llama_cpp only</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-3">
+                    Auto uses configured cloud providers. Select LocalAI or llama_cpp only after configuring those local services.
+                </p>
+            </div>
+
             <SummaryPanel
                 platforms={selectedPlatforms}
                 contents={selectedContent}
@@ -137,6 +311,7 @@ export default function AIStudio() {
             <GenerateButton
                 loading={loading}
                 onGenerate={handleGenerate}
+                disabled={!isReady}
             />
 
             <PreviewPanel

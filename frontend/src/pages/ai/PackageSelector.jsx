@@ -54,13 +54,14 @@ export default function PackageSelector({
 
     return (
 
-        <div className="mt-10">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            <h2 className="text-2xl font-bold mb-5">
-                Select Content Package
+            <h2 className="mb-1 text-lg font-semibold text-slate-900">
+                4. Choose a package
             </h2>
+            <p className="mb-4 text-sm text-slate-500">Choose the depth and output style for this generation.</p>
 
-            <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
 
                 {packages.map((item) => {
 
@@ -68,36 +69,37 @@ export default function PackageSelector({
 
                     return (
 
-                        <div
+                        <button
+                            type="button"
                             key={item.id}
                             onClick={() => onChange(item.id)}
-                            className={`cursor-pointer rounded-2xl border-2 p-6 transition duration-300
+                            className={`rounded-xl border p-4 text-left transition duration-200
 
                             ${
                                 selected === item.id
-                                    ? "border-blue-600 bg-blue-50 shadow-lg"
-                                    : "border-gray-200 bg-white hover:border-blue-400 hover:shadow"
+                                    ? "border-blue-600 bg-blue-50 shadow-sm"
+                                    : "border-slate-200 bg-white hover:border-blue-400"
                             }`}
                         >
 
                             <Icon
-                                size={38}
+                                size={26}
                                 className="text-blue-600"
                             />
 
-                            <h3 className="mt-4 text-lg font-bold">
+                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
 
                                 {item.title}
 
                             </h3>
 
-                            <p className="text-gray-500 text-sm mt-2">
+                            <p className="mt-1 text-xs text-slate-500">
 
                                 {item.description}
 
                             </p>
 
-                        </div>
+                        </button>
 
                     );
 
@@ -105,7 +107,7 @@ export default function PackageSelector({
 
             </div>
 
-        </div>
+        </section>
 
     );
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.core.security import get_current_user_id
 
 from app.schemas.scene import (
     SceneCreate,
@@ -25,12 +26,8 @@ router = APIRouter(
 def create_scene(
     request: SceneCreate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    # TODO:
-    # Replace with authenticated user
-    user_id = 1
-
     return SceneService.create(
         db=db,
         user_id=user_id,
@@ -48,10 +45,8 @@ def generate_scenes(
     content_id: int,
     ai_data: dict,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     scenes = SceneService.generate(
         db=db,
         project_id=project_id,
@@ -77,10 +72,8 @@ def generate_scenes(
 @router.get("/")
 def get_all_scenes(
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     scenes = SceneService.get_all(
         db=db,
         user_id=user_id,
@@ -101,10 +94,8 @@ def get_all_scenes(
 def get_scene(
     scene_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     scene = SceneService.get_by_id(
         db=db,
         scene_id=scene_id,
@@ -131,10 +122,8 @@ def get_scene(
 def get_project_scenes(
     project_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     scenes = SceneService.get_project_scenes(
         db=db,
         project_id=project_id,
@@ -156,10 +145,8 @@ def get_project_scenes(
 def get_content_scenes(
     content_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     scenes = SceneService.get_content_scenes(
         db=db,
         content_id=content_id,
@@ -182,10 +169,8 @@ def update_scene(
     scene_id: int,
     request: SceneUpdate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return SceneService.update(
         db=db,
         scene_id=scene_id,
@@ -202,10 +187,8 @@ def update_scene(
 def delete_scene(
     scene_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return SceneService.delete(
         db=db,
         scene_id=scene_id,

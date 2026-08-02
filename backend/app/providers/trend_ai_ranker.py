@@ -48,6 +48,8 @@ Your tasks are:
    - Short
    - Video
 
+Return all unique topics after deduplication and merging. Do not truncate the list. Keep every valid topic and sort by score descending.
+
 Return ONLY valid JSON.
 
 Expected JSON format:

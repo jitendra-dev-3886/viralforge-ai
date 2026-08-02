@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.core.security import get_current_user_id
 from app.services.brand_service import BrandService
 from app.schemas.brand import (
     CreateBrandRequest,
@@ -22,12 +23,8 @@ router = APIRouter(
 def create_brand(
     request: CreateBrandRequest,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    # TODO:
-    # Replace with authenticated user
-    user_id = 1
-
     return BrandService.create_brand(
         db=db,
         user_id=user_id,
@@ -42,10 +39,8 @@ def create_brand(
 @router.get("/")
 def get_all_brands(
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return BrandService.get_all_brands(
         db=db,
         user_id=user_id,
@@ -60,10 +55,8 @@ def get_all_brands(
 def get_brand(
     brand_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return BrandService.get_brand(
         db=db,
         brand_id=brand_id,
@@ -80,10 +73,8 @@ def update_brand(
     brand_id: int,
     request: UpdateBrandRequest,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return BrandService.update_brand(
         db=db,
         brand_id=brand_id,
@@ -100,10 +91,8 @@ def update_brand(
 def delete_brand(
     brand_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-
-    user_id = 1
-
     return BrandService.delete_brand(
         db=db,
         brand_id=brand_id,

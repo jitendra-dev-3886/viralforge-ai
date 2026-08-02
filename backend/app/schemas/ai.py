@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,17 +24,43 @@ class GenerateRequest(BaseModel):
     language: Optional[str] = "English"
 
     provider: Optional[str] = "groq"
+    providers: Optional[List[str]] = None
+
+    outputs: Optional[List[str]] = None
 
 
 # ==========================================================
 # AI Generated Content
 # ==========================================================
 
+class SceneItem(BaseModel):
+
+    scene: Optional[int]
+
+    title: Optional[str] = ""
+
+    text: Optional[str] = ""
+
+    keyword: Optional[str] = ""
+
+    image_prompt: Optional[str] = ""
+
+    video_prompt: Optional[str] = ""
+
+    media_type: Optional[str] = "image"
+
+    duration: Optional[int] = 5
+
+    platform: Optional[str] = ""
+
+
 class AIContent(BaseModel):
 
     title: str
 
-    hook: str
+    hook: Optional[str] = ""
+
+    description: Optional[str] = ""
 
     script: str
 
@@ -44,7 +70,11 @@ class AIContent(BaseModel):
 
     keywords: List[str] = []
 
-    cta: str
+    cta: Optional[str] = ""
+
+    story: Optional[str] = ""
+
+    scenes: List[SceneItem] = []
 
 
 # ==========================================================
@@ -59,7 +89,7 @@ class GenerateResponse(BaseModel):
 
     content_id: int
 
-    data: AIContent
+    data: Any
 
 
 # ==========================================================

@@ -72,13 +72,15 @@ class Content(Base):
         nullable=True,
     )
 
+    # UPDATED: Increased from 50 to 255 to allow multiple comma-separated platforms
     platform = Column(
-        String(50),
+        String(255),
         nullable=False,
     )
 
+    # UPDATED: Increased from 50 to 255 to allow multiple comma-separated content types
     content_type = Column(
-        String(50),
+        String(255),
         nullable=False,
     )
 

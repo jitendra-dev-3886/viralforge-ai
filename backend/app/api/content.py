@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.core.security import get_current_user_id
 
 from app.schemas.content import (
     ContentCreate,
@@ -22,9 +23,9 @@ router = APIRouter(
 
 @router.post("/")
 def create_content(
-    user_id: int,
     request: ContentCreate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.create(
         db=db,
@@ -39,8 +40,8 @@ def create_content(
 
 @router.get("/")
 def get_all_contents(
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.get_all(
         db=db,
@@ -55,8 +56,8 @@ def get_all_contents(
 @router.get("/{content_id}")
 def get_content(
     content_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.get_by_id(
         db=db,
@@ -72,8 +73,8 @@ def get_content(
 @router.get("/project/{project_id}")
 def get_project_contents(
     project_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.get_project_contents(
         db=db,
@@ -89,9 +90,9 @@ def get_project_contents(
 @router.put("/{content_id}")
 def update_content(
     content_id: int,
-    user_id: int,
     request: ContentUpdate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.update(
         db=db,
@@ -108,8 +109,8 @@ def update_content(
 @router.delete("/{content_id}")
 def delete_content(
     content_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return ContentService.delete(
         db=db,
