@@ -1,8 +1,8 @@
 import api from "./axios";
 
-export const getTrending = async (niche) => {
+export const getTrending = async (niche, limit = 24) => {
     const response = await api.get("/trends/", {
-        params: niche ? { niche } : {},
+        params: niche ? { niche, limit } : { limit },
     });
     return response.data;
 };

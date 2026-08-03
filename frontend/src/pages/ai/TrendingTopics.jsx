@@ -1,45 +1,27 @@
 import { useEffect, useState } from "react";
-import { Flame, Lightbulb, Pencil } from "lucide-react";
+import { Flame, Lightbulb, Pencil, RefreshCw } from "lucide-react";
 import { getTrending } from "../../api/trends";
 
-const defaultTrendingTopics = [
-    "Krishna's Biggest Life Lesson",
-    "Power of Karma",
-    "Morning Meditation Benefits",
-    "Passive Income in 2026",
-    "Why People Overthink",
-    "Universe Hidden Secrets",
-];
-
-const aiIdeas = [
-    "If Krishna Lived Today...",
-    "5 Habits of Rich People",
-    "The Secret Behind Black Holes",
-    "Why Smart People Stay Silent",
-    "Signs of True Love",
-    "Power of Positive Thinking",
-];
-
-const nicheCategoryMap = {
-    morning_spiritual: "Spiritual",
-    financial_freedom: "Finance",
-    cosmic_knowledge: "Spiritual",
-    psychology: "Psychology",
-    love_romantic: "Entertainment",
-};
-
 export default function TrendingTopics({ niche, onSelect }) {
-
     const [activeTab, setActiveTab] = useState("trending");
-    const [trendingTopics, setTrendingTopics] = useState(defaultTrendingTopics);
+    const [trendingTopics, setTrendingTopics] = useState([]);
+    const [topicLimit, setTopicLimit] = useState(24);
+    const [topicMeta, setTopicMeta] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [myTopic, setMyTopic] = useState("");
 
     useEffect(() => {
+        setTopicLimit(24);
+    }, [niche]);
+
+    useEffect(() => {
+        let cancelled = false;
+
         const fetchTrending = async () => {
             if (!niche) {
-                setTrendingTopics(defaultTrendingTopics);
+                setTrendingTopics([]);
+                setTopicMeta(null);
                 return;
             }
 
@@ -47,94 +29,118 @@ export default function TrendingTopics({ niche, onSelect }) {
             setError("");
 
             try {
-                const data = await getTrending(niche);
+                const data = await getTrending(niche, topicLimit);
                 const topics = Array.isArray(data) ? data : data?.trends || [];
-                const category = nicheCategoryMap[niche];
+                const relevantTopics = topics
+                    .map((item) => (
+                        typeof item === "string"
+                            ? { title: item, source: "live" }
+                            : item
+                    ))
+                    .filter((item) => item?.title);
 
-                const filtered = topics
-                    .filter((item) => {
-                        if (!item || typeof item !== "object") return false;
-                        if (category && item.category) {
-                            return item.category.toLowerCase() === category.toLowerCase();
-                        }
-                        return true;
-                    })
-                    .map((item) => item.title)
-                    .filter(Boolean);
-
-                setTrendingTopics(filtered.length > 0 ? filtered : defaultTrendingTopics);
+                if (!cancelled) {
+                    setTrendingTopics(relevantTopics);
+                    setTopicMeta(data && !Array.isArray(data) ? data : null);
+                }
             } catch (err) {
                 console.error("Trending fetch failed", err);
-                setError("Unable to load trending topics right now.");
-                setTrendingTopics(defaultTrendingTopics);
+                if (!cancelled) {
+                    setError("Unable to load niche topics right now.");
+                    setTrendingTopics([]);
+                    setTopicMeta(null);
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchTrending();
-    }, [niche]);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [niche, topicLimit]);
+
+    const displayNiche = topicMeta?.niche || niche.replaceAll("_", " ");
+    const ideaTopics = trendingTopics.filter((topic) => topic.source !== "live");
+
+    const topicCard = (topic, index, icon) => (
+        <button
+            type="button"
+            key={`${topic.title}-${index}`}
+            onClick={() => onSelect(topic.title)}
+            className="w-full rounded-xl border border-slate-200 p-3 text-left text-sm text-slate-700 transition hover:border-blue-500 hover:bg-blue-50"
+        >
+            <div className="flex items-start justify-between gap-3">
+                <span>{icon} {topic.title}</span>
+                {topic.source === "live" && (
+                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        Live
+                    </span>
+                )}
+            </div>
+        </button>
+    );
 
     return (
-
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
             <h2 className="mb-1 text-lg font-semibold text-slate-900">
                 5. Choose a topic
             </h2>
-            <p className="mb-4 text-sm text-slate-500">Use a trend, a suggested idea, or write a custom brief.</p>
-
-            {/* Tabs */}
+            <p className="mb-4 text-sm text-slate-500">
+                Choose from live niche trends, niche-specific content ideas, or write a custom brief.
+            </p>
 
             <div className="mb-4 flex flex-wrap gap-2">
-
                 <button
+                    type="button"
                     onClick={() => setActiveTab("trending")}
-                    className={`px-5 py-2 rounded-lg ${
+                    className={`rounded-lg px-5 py-2 ${
                         activeTab === "trending"
                             ? "bg-blue-600 text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                 >
-                    <Flame size={18} className="inline mr-2" />
+                    <Flame size={18} className="mr-2 inline" />
                     Trending
                 </button>
 
                 <button
+                    type="button"
                     onClick={() => setActiveTab("ideas")}
-                    className={`px-5 py-2 rounded-lg ${
+                    className={`rounded-lg px-5 py-2 ${
                         activeTab === "ideas"
                             ? "bg-blue-600 text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                 >
-                    <Lightbulb size={18} className="inline mr-2" />
-                    AI Ideas
+                    <Lightbulb size={18} className="mr-2 inline" />
+                    Niche Ideas
                 </button>
 
                 <button
+                    type="button"
                     onClick={() => setActiveTab("custom")}
-                    className={`px-5 py-2 rounded-lg ${
+                    className={`rounded-lg px-5 py-2 ${
                         activeTab === "custom"
                             ? "bg-blue-600 text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                 >
-                    <Pencil size={18} className="inline mr-2" />
+                    <Pencil size={18} className="mr-2 inline" />
                     My Topic
                 </button>
-
             </div>
 
-            {/* Trending */}
-
             {activeTab === "trending" && (
-
                 <div>
                     {loading ? (
                         <div className="space-y-3">
-                            {[1, 2, 3].map((item) => (
-                                <div key={item} className="h-14 rounded-xl bg-slate-100 animate-pulse" />
+                            {[1, 2, 3, 4].map((item) => (
+                                <div key={item} className="h-14 animate-pulse rounded-xl bg-slate-100" />
                             ))}
                         </div>
                     ) : (
@@ -145,71 +151,67 @@ export default function TrendingTopics({ niche, onSelect }) {
                                 </div>
                             )}
 
-                            <div className="mb-4 text-sm text-slate-500">
-                                Showing {trendingTopics.length} trending topics.
-                            </div>
-                            <div className="grid gap-2 md:grid-cols-2 max-h-[320px] overflow-y-auto pr-1">
-                                {trendingTopics.map((topic) => (
-                                    <div
-                                        key={topic}
-                                        onClick={() => onSelect(topic)}
-                                        className="cursor-pointer rounded-xl border border-slate-200 p-3 text-sm text-slate-700 transition hover:border-blue-500 hover:bg-blue-50"
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
+                                <span>
+                                    Showing {trendingTopics.length} topics for {displayNiche}.
+                                </span>
+                                {topicLimit < 30 && trendingTopics.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setTopicLimit(30)}
+                                        className="inline-flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
                                     >
-                                        🔥 {topic}
-                                    </div>
-                                ))}
+                                        <RefreshCw size={15} />
+                                        Show more
+                                    </button>
+                                )}
                             </div>
+
+                            {topicMeta?.live_count === 0 && (
+                                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    Live trend sources are unavailable, so these are niche-specific content ideas.
+                                </p>
+                            )}
+
+                            <div className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                                {trendingTopics.map((topic, index) => topicCard(topic, index, "🔥"))}
+                            </div>
+
+                            {!trendingTopics.length && !error && (
+                                <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                                    Select a niche to load matching topic ideas.
+                                </p>
+                            )}
                         </>
                     )}
                 </div>
-
             )}
-
-            {/* AI Ideas */}
 
             {activeTab === "ideas" && (
-
-                <div className="grid gap-2 md:grid-cols-2">
-
-                    {aiIdeas.map((topic) => (
-
-                        <div
-                            key={topic}
-                            onClick={() => onSelect(topic)}
-                            className="cursor-pointer rounded-xl border border-slate-200 p-3 text-sm text-slate-700 transition hover:border-blue-500 hover:bg-blue-50"
-                        >
-                            💡 {topic}
-                        </div>
-
+                <div className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                    {(ideaTopics.length ? ideaTopics : trendingTopics).map((topic, index) => (
+                        topicCard(topic, index, "💡")
                     ))}
-
+                    {!trendingTopics.length && (
+                        <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 md:col-span-2">
+                            Select a niche first to load matching ideas.
+                        </p>
+                    )}
                 </div>
-
             )}
-
-            {/* Custom Topic */}
 
             {activeTab === "custom" && (
-
-                <div>
-
-                    <textarea
-                        rows={5}
-                        placeholder="Write your own topic..."
-                        value={myTopic}
-                        onChange={(e) => {
-                            setMyTopic(e.target.value);
-                            onSelect(e.target.value);
-                        }}
-                        className="w-full border rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-
-                </div>
-
+                <textarea
+                    rows={5}
+                    placeholder="Write your own topic..."
+                    value={myTopic}
+                    onChange={(event) => {
+                        setMyTopic(event.target.value);
+                        onSelect(event.target.value);
+                    }}
+                    className="w-full rounded-xl border p-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
             )}
-
         </section>
-
     );
-
 }

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.image import Image
-from app.schemas.image import ImageCreate
+from app.schemas.image import ImageCreate, ImageUpdate
 
 
 class ImageService:
@@ -52,117 +52,102 @@ class ImageService:
 
             image_path = image_dir / filename
 
-        from app.core.pexels_client import PexelsClient
-        from app.core.pixabay_client import PixabayClient
+            from app.core.pexels_client import PexelsClient
+            from app.core.pixabay_client import PixabayClient
 
-        # ==================================================
-        # Get Image Data
-        # ==================================================
+            # ==================================================
+            # Get Image Data
+            # ==================================================
 
-        image_data = None
-
-        if request.provider == "pexels":
-
-            image_data = PexelsClient.search_and_download(
-                keyword=request.prompt,
-                media_type="image",
-                save_path=str(image_path),
+            image_data = None
+            orientation = (
+                "portrait" if request.height > request.width
+                else "landscape" if request.width > request.height
+                else "square"
             )
 
-        elif request.provider == "pixabay":
+            if request.provider == "pexels":
+                image_data = PexelsClient.search_and_download(
+                    keyword=request.prompt,
+                    media_type="image",
+                    save_path=str(image_path),
+                    orientation=orientation,
+                )
 
-            image_data = PixabayClient.search_and_download(
-                keyword=request.prompt,
-                media_type="image",
-                save_path=str(image_path),
-            )
+            elif request.provider == "pixabay":
+                image_data = PixabayClient.search_and_download(
+                    keyword=request.prompt,
+                    media_type="image",
+                    save_path=str(image_path),
+                    orientation=orientation,
+                )
 
-        else:
+            else:
+                url = (
+                    "https://image.pollinations.ai/prompt/"
+                    + request.prompt.replace(" ", "%20")
+                )
+                response = requests.get(url, timeout=120)
 
-            # Pollinations AI
-            url = (
-                "https://image.pollinations.ai/prompt/"
-                + request.prompt.replace(" ", "%20")
-            )
+                if response.status_code != 200:
+                    return {
+                        "success": False,
+                        "message": "Image generation failed.",
+                    }
 
-            response = requests.get(
-                url,
-                timeout=120,
-            )
+                with open(image_path, "wb") as file:
+                    file.write(response.content)
 
-            if response.status_code != 200:
-
-                return {
-                    "success": False,
-                    "message": "Image generation failed.",
+                image_data = {
+                    "provider": "Pollinations",
+                    "title": request.prompt,
+                    "file_url": url,
+                    "file_path": str(image_path),
+                    "file_size": image_path.stat().st_size if image_path.exists() else 0,
+                    "width": request.width,
+                    "height": request.height,
+                    "mime_type": "image/png",
+                    "extension": ".png",
+                    "duration": 0,
                 }
 
-            with open(image_path, "wb") as f:
-                f.write(response.content)
+            if not image_data:
+                return {
+                    "success": False,
+                    "message": "Image generation failed. No image data received.",
+                }
 
-            file_size = (
-                image_path.stat().st_size
-                if image_path.exists()
-                else 0
+            # ==================================================
+            # Save Database
+            # ==================================================
+
+            image = Image(
+                user_id=user_id,
+                project_id=request.project_id,
+                content_id=request.content_id,
+                scene_id=request.scene_id,
+                provider=image_data["provider"],
+                model=request.model,
+                prompt=request.prompt,
+                negative_prompt=request.negative_prompt,
+                image_name=image_data["title"],
+                image_path=image_data["file_path"],
+                image_url=image_data["file_url"],
+                width=image_data["width"],
+                height=image_data["height"],
+                file_size=image_data["file_size"],
+                status="generated",
+                error_message=None,
             )
 
-            image_data = {
-                "provider": "Pollinations",
-                "title": request.prompt,
-                "file_url": url,
-                "file_path": str(image_path),
-                "file_size": file_size,
-                "width": request.width,
-                "height": request.height,
-                "mime_type": "image/png",
-                "extension": ".png",
-                "duration": 0,
-            }
-
-        if not image_data:
-
-            return {
-                "success": False,
-                "message": "Image generation failed. No image data received.",
-            }
-
-        # ==================================================
-        # Save Database
-        # ==================================================
-
-        image = Image(
-            user_id=user_id,
-            project_id=request.project_id,
-            content_id=request.content_id,
-            scene_id=request.scene_id,
-            provider=image_data["provider"],
-            model=request.model,
-            prompt=request.prompt,
-            negative_prompt=request.negative_prompt,
-            image_name=image_data["title"],
-            image_path=image_data["file_path"],
-            image_url=image_data["file_url"],
-            width=image_data["width"],
-            height=image_data["height"],
-            file_size=image_data["file_size"],
-            status="generated",
-            error_message=None,
-        )
-
             db.add(image)
-
             db.commit()
-
             db.refresh(image)
 
             return {
-
                 "success": True,
-
                 "message": "Image generated successfully.",
-
                 "image": image,
-
             }
 
         except Exception as e:

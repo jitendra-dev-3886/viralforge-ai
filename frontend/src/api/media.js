@@ -39,3 +39,23 @@ export const deleteMedia = async (mediaId, userId = 1) => {
     });
     return response.data;
 };
+
+export const downloadMedia = async (mediaIds) => {
+    const response = await api.post(
+        "/media/download",
+        { media_ids: mediaIds },
+        { responseType: "blob" },
+    );
+
+    const contentDisposition = response.headers["content-disposition"] || "";
+    const fileName = contentDisposition.match(/filename="?([^";]+)"?/i)?.[1]
+        || (mediaIds.length === 1 ? "viralforge-media" : "viralforge-selected-media.zip");
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};

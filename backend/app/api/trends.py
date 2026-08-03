@@ -11,6 +11,6 @@ router = APIRouter(
 
 
 @router.get("/")
-def trending(niche: Optional[str] = None):
+def trending(niche: Optional[str] = None, limit: int = 24):
 
-    return TrendService.get_trending(niche=niche)
+    return TrendService.get_trending(niche=niche, limit=limit)

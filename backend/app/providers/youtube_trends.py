@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
@@ -13,7 +14,8 @@ class YoutubeProvider:
 
         key = os.getenv("YOUTUBE_API_KEY")
 
-        print("YOUTUBE:", key[:10])
+        if not key:
+            raise ValueError("YOUTUBE_API_KEY is not configured")
 
         self.youtube = build(
             "youtube",
@@ -21,17 +23,36 @@ class YoutubeProvider:
             developerKey=key,
         )
 
-    def get_trending(self):
+    def get_trending(self, query: str | None = None, limit: int = 25):
+        """Return video titles, optionally focused on one creator niche."""
+        limit = max(1, min(limit, 50))
 
-        request = self.youtube.videos().list(
-            part="snippet",
-            chart="mostPopular",
-            regionCode="IN",
-            maxResults=5,
-        )
+        if not query:
+            response = self.youtube.videos().list(
+                part="snippet",
+                chart="mostPopular",
+                regionCode="IN",
+                maxResults=limit,
+            ).execute()
+        else:
+            # A recent niche search produces useful creator topics; the global
+            # most-popular endpoint cannot be filtered by niche.
+            published_after = (
+                datetime.now(timezone.utc) - timedelta(days=90)
+            ).isoformat().replace("+00:00", "Z")
+            response = self.youtube.search().list(
+                part="snippet",
+                q=query,
+                type="video",
+                order="viewCount",
+                regionCode="IN",
+                relevanceLanguage="en",
+                publishedAfter=published_after,
+                maxResults=limit,
+            ).execute()
 
-        response = request.execute()
-
-        print(response)
-
-        return response
+        return [
+            item.get("snippet", {}).get("title", "").strip()
+            for item in response.get("items", [])
+            if item.get("snippet", {}).get("title")
+        ]

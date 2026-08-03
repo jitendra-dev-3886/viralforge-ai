@@ -6,7 +6,7 @@ from app.core.groq_client import groq_client
 class TrendAIRanker:
 
     @staticmethod
-    def rank(trends):
+    def rank(trends, niche_label: str = "", category: str = "", limit: int = 24):
 
         topics = json.dumps(trends, indent=2)
 
@@ -17,12 +17,15 @@ Below are today's trending topics.
 
 {topics}
 
+Selected creator niche: {niche_label or "General"}
+Required category: {category or "Choose the closest category"}
+
 Your tasks are:
 
 1. Remove duplicate ideas.
 2. Merge similar topics.
 3. Score every topic from 1 to 100.
-4. Detect exactly one category:
+4. Use the required category when provided; otherwise detect exactly one category:
    - Finance
    - Motivation
    - Business
@@ -48,7 +51,7 @@ Your tasks are:
    - Short
    - Video
 
-Return all unique topics after deduplication and merging. Do not truncate the list. Keep every valid topic and sort by score descending.
+Return up to {limit} unique topics after deduplication and merging. Keep only topics that genuinely match the selected niche. Sort by score descending.
 
 Return ONLY valid JSON.
 

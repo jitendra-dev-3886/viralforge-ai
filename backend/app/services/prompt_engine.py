@@ -108,19 +108,7 @@ For Carousel, use only image scenes and make every `media_type` set to `image`.
 Include one short `story` field that summarizes all slides into a single mini-story capturing the sequence and visual narrative.
 For Carousel scenes, set `image_prompt` and `keyword` for image search. If `video_prompt` is required, mirror the `image_prompt`.
 
-If the request includes more than one selected output, return a nested JSON structure organized by platform and content type.
-Example:
-{{
-  "instagram": {{
-    "carousel": {{ ... }},
-    "reel": {{ ... }}
-  }},
-  "youtube": {{
-    "shorts": {{ ... }}
-  }}
-}}
-
-If only one output is selected, return a flat JSON object with title, hook, description, caption, hashtags, seo_keywords, cta, and scenes.
+Return one flat JSON object with title, hook, description, caption, hashtags, seo_keywords, cta, and scenes. The selected platform and content type above are the only format you may create.
 
 If content type is YouTube
 
@@ -140,52 +128,19 @@ Each scene MUST contain
 If the selected platform is Instagram, TikTok, or Facebook, keep the scene text short and punchy.
 If the selected platform is YouTube, keep the narrative longer and more explanatory.
 
-If package is carousel, focus the output on carousel slide sequencing and concise visual messaging.
+The selected Content Type controls the delivery format. Package controls creative depth only; never turn a Reel, Shorts, Story, or Long Video into a carousel just because the package is Carousel.
 
 ================================================
 MEDIA TYPE RULES
 ================================================
 
-Use
-
-image
-
-for quotes,
-finance,
-motivation,
-psychology,
-business
-
-Use
-
-video
-
-for
-
-travel,
-sports,
-nature,
-animals,
-food,
-fitness,
-cinematic
-
-If the selected content type requires motion, prefer video scenes.
-If the selected content type is photo-first, prefer image scenes.
+Use `video` for every Reel, Story, Shorts, and Long Video scene. Use `image` for every Carousel, Post, Quote, and Community Post scene. Do not mix the two media types unless the requested format explicitly needs it.
 
 ================================================
 KEYWORD RULES
 ================================================
 
-keyword must be suitable for searching stock media on
-
-Pexels
-Pixabay
-Unsplash
-
-If available, also provide an image_prompt or video_prompt that is a short search phrase for those services.
-
-Do NOT use long sentences.
+`keyword`, `image_prompt`, and `video_prompt` must be a precise 2-6 word English stock-media search phrase for Pexels or Pixabay. Describe the visible subject, action, and setting (for example: `woman checking budget at desk` or `aerial tropical beach waves`). Do not use abstract concepts, hashtags, text-overlay requests, camera jargon, "viral", "cinematic", "4k", or full sentences.
 
 Good examples:
 
@@ -209,11 +164,10 @@ Return ONLY valid JSON.
 RELEVANCE RULES
 ================================================
 
-- Generate exactly one content output.
-- Use only the selected platforms and content types.
-- Do not introduce extra formats, content items, or unrelated topics.
-- If multiple platforms are selected, the response should still be a single piece of content optimized for those selections.
-- Do not return arrays of content objects or additional result items.
+- Create content only for the selected platform and selected content type.
+- Make platform conventions part of the result: short opening hook and compact caption for Instagram/Facebook; searchable title and longer explanation for YouTube.
+- Do not introduce extra formats, platforms, content items, or unrelated topics.
+- Do not return arrays of content objects.
 
 ================================================
 OUTPUT

@@ -78,10 +78,14 @@ ${content.cta || ""}
                 return null;
             }
 
+            const isCarousel = Boolean(content.story) && content.scenes.every(
+                (scene) => (scene.media_type || "image") === "image",
+            );
+
             return (
                 <div className="mt-6">
-                    <strong>Scenes</strong>
-                    <div className="mt-4 space-y-4">
+                    <strong>{isCarousel ? "Carousel slides" : "Scene media"}</strong>
+                    <div className={`mt-4 ${isCarousel ? "grid gap-4 sm:grid-cols-2" : "space-y-4"}`}>
                         {content.scenes.map((scene, index) => (
                             <div
                                 key={index}
@@ -115,7 +119,35 @@ ${content.cta || ""}
                                         <p>
                                             <strong>Video Prompt:</strong> {scene.video_prompt}</p>
                                     )}
+                                    {scene.media_provider && (
+                                        <p>
+                                            <strong>Source:</strong> {scene.media_provider}
+                                        </p>
+                                    )}
                                 </div>
+                                {scene.media_url && (
+                                    scene.media_type === "video" ? (
+                                        <video
+                                            className="mt-4 max-h-80 w-full rounded-xl bg-slate-950 object-contain"
+                                            controls
+                                            preload="metadata"
+                                            src={scene.media_url}
+                                        >
+                                            Your browser cannot preview this video.
+                                        </video>
+                                    ) : (
+                                        <img
+                                            className="mt-4 max-h-80 w-full rounded-xl object-cover"
+                                            src={scene.media_url}
+                                            alt={scene.keyword || `Scene ${scene.scene || index + 1}`}
+                                        />
+                                    )
+                                )}
+                                {!scene.media_url && (
+                                    <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                        Media preview is unavailable for this scene. Check your Pexels/Pixabay API keys, then regenerate this content.
+                                    </p>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -206,6 +238,8 @@ ${content.cta || ""}
                         <Copy size={18} />
                         Copy Content
                     </button>
+
+                    {renderScenes()}
                 </div>
             </div>
         );
@@ -214,78 +248,21 @@ ${content.cta || ""}
     const renderPlatformContent = () => (
         <div className="space-y-8 mt-8">
             {Object.entries(data.data).map(([platform, platformData]) => (
-                <div
-                    key={platform}
-                    className="bg-white rounded-3xl shadow-lg p-8"
-                >
-                    <h2 className="text-3xl font-bold capitalize text-indigo-600 mb-8">
-                        {platform.replace("_", " ")}
+                <section key={platform}>
+                    <h2 className="mb-5 text-3xl font-bold capitalize text-indigo-600">
+                        {platform.replaceAll("_", " ")}
                     </h2>
-                    {Object.entries(platformData).map(([type, content]) => {
-                        const videoText = content.video || content.script || content.voiceover || "";
-                        const voiceoverText = content.voiceover || content.script || "";
-                        const hashtags = normalizeArray(content.hashtags);
-
-                        return (
-                            <div
-                                key={type}
-                                className="border rounded-2xl p-6 mb-6 bg-slate-50"
-                            >
-                                <h3 className="text-xl font-bold capitalize mb-6">
-                                    {type}
+                    <div className="space-y-6">
+                        {Object.entries(platformData).map(([type, content]) => (
+                            <div key={type}>
+                                <h3 className="mb-3 text-xl font-bold capitalize text-slate-800">
+                                    {type.replaceAll("_", " ")}
                                 </h3>
-                                <div className="space-y-5">
-                                    <div>
-                                        <strong>
-                                            Video
-                                        </strong>
-                                        <p className="mt-2 text-gray-700">
-                                            {videoText}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <strong>
-                                            Voiceover
-                                        </strong>
-                                        <p className="mt-2 text-gray-700">
-                                            {voiceoverText}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <strong>
-                                            Caption
-                                        </strong>
-                                        <p className="mt-2 text-gray-700">
-                                            {content.caption}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <strong>
-                                            Hashtags
-                                        </strong>
-                                        <div className="flex flex-wrap gap-2 mt-3">
-                                            {hashtags.map((tag, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm"
-                                                >
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            <button
-                                onClick={() => copyContent(content)}
-                                className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl flex items-center gap-2"
-                            >
-                                <Copy size={18} />
-                                Copy Content
-                            </button>
-                        </div>
-                    );
-                })}
-                </div>
+                                {renderContentCard(content)}
+                            </div>
+                        ))}
+                    </div>
+                </section>
             ))}
         </div>
     );

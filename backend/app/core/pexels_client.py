@@ -3,6 +3,8 @@ import requests
 
 from dotenv import load_dotenv
 
+from app.core.media_selection import best_by_dimensions
+
 load_dotenv()
 
 
@@ -41,6 +43,7 @@ class PexelsClient:
         query: str,
         per_page: int = 10,
         page: int = 1,
+        orientation: str | None = None,
     ):
 
         response = requests.get(
@@ -50,13 +53,10 @@ class PexelsClient:
             headers=cls.headers(),
 
             params={
-
                 "query": query,
-
                 "per_page": per_page,
-
                 "page": page,
-
+                **({"orientation": orientation} if orientation else {}),
             },
 
             timeout=30,
@@ -77,6 +77,7 @@ class PexelsClient:
         query: str,
         per_page: int = 10,
         page: int = 1,
+        orientation: str | None = None,
     ):
 
         response = requests.get(
@@ -86,13 +87,10 @@ class PexelsClient:
             headers=cls.headers(),
 
             params={
-
                 "query": query,
-
                 "per_page": per_page,
-
                 "page": page,
-
+                **({"orientation": orientation} if orientation else {}),
             },
 
             timeout=30,
@@ -111,11 +109,13 @@ class PexelsClient:
     def first_image(
         cls,
         query: str,
+        orientation: str | None = None,
     ):
 
         data = cls.search_images(
             query=query,
-            per_page=1,
+            per_page=20,
+            orientation=orientation,
         )
 
         photos = data.get(
@@ -126,7 +126,12 @@ class PexelsClient:
         if not photos:
             return None
 
-        photo = photos[0]
+        photo = best_by_dimensions(
+            photos,
+            lambda item: (item.get("width"), item.get("height")),
+            media_type="image",
+            orientation=orientation,
+        )
 
         return {
 
@@ -159,11 +164,13 @@ class PexelsClient:
     def first_video(
         cls,
         query: str,
+        orientation: str | None = None,
     ):
 
         data = cls.search_videos(
             query=query,
-            per_page=1,
+            per_page=20,
+            orientation=orientation,
         )
 
         videos = data.get(
@@ -174,7 +181,12 @@ class PexelsClient:
         if not videos:
             return None
 
-        video = videos[0]
+        video = best_by_dimensions(
+            videos,
+            lambda item: (item.get("width"), item.get("height")),
+            media_type="video",
+            orientation=orientation,
+        )
 
         files = video.get(
             "video_files",
@@ -184,10 +196,15 @@ class PexelsClient:
         if not files:
             return None
 
-        best = max(
-            files,
-            key=lambda x: x.get("width", 0),
+        best = best_by_dimensions(
+            [item for item in files if item.get("file_type") in (None, "video/mp4")],
+            lambda item: (item.get("width"), item.get("height")),
+            media_type="video",
+            orientation=orientation,
         )
+
+        if not best or not best.get("link"):
+            return None
 
         return {
 
@@ -268,15 +285,16 @@ class PexelsClient:
         keyword: str,
         media_type: str,
         save_path: str,
+        orientation: str | None = None,
     ):
 
         if media_type.lower() == "image":
 
-            media = cls.first_image(keyword)
+            media = cls.first_image(keyword, orientation=orientation)
 
         elif media_type.lower() == "video":
 
-            media = cls.first_video(keyword)
+            media = cls.first_video(keyword, orientation=orientation)
 
         else:
 

@@ -3,6 +3,8 @@ import requests
 
 from dotenv import load_dotenv
 
+from app.core.media_selection import best_by_dimensions
+
 load_dotenv()
 
 
@@ -22,7 +24,17 @@ class PixabayClient:
         }
 
     @classmethod
-    def search_images(cls, query: str, per_page: int = 10, page: int = 1):
+    def search_images(
+        cls,
+        query: str,
+        per_page: int = 10,
+        page: int = 1,
+        orientation: str | None = None,
+    ):
+        pixabay_orientation = {
+            "portrait": "vertical",
+            "landscape": "horizontal",
+        }.get((orientation or "").lower())
         response = requests.get(
             cls.IMAGE_URL,
             headers=cls.headers(),
@@ -30,8 +42,10 @@ class PixabayClient:
                 "key": cls.API_KEY,
                 "q": query,
                 "image_type": "photo",
+                "safesearch": "true",
                 "per_page": per_page,
                 "page": page,
+                **({"orientation": pixabay_orientation} if pixabay_orientation else {}),
             },
             timeout=30,
         )
@@ -55,12 +69,17 @@ class PixabayClient:
         return response.json()
 
     @classmethod
-    def first_image(cls, query: str):
-        data = cls.search_images(query=query, per_page=1)
+    def first_image(cls, query: str, orientation: str | None = None):
+        data = cls.search_images(query=query, per_page=20, orientation=orientation)
         hits = data.get("hits", [])
         if not hits:
             return None
-        image = hits[0]
+        image = best_by_dimensions(
+            hits,
+            lambda item: (item.get("imageWidth"), item.get("imageHeight")),
+            media_type="image",
+            orientation=orientation,
+        )
         return {
             "provider": "Pixabay",
             "title": image.get("tags", query),
@@ -73,22 +92,46 @@ class PixabayClient:
         }
 
     @classmethod
-    def first_video(cls, query: str):
-        data = cls.search_videos(query=query, per_page=1)
+    def first_video(cls, query: str, orientation: str | None = None):
+        data = cls.search_videos(query=query, per_page=20)
         hits = data.get("hits", [])
         if not hits:
             return None
-        video = hits[0]
+
+        def video_dimensions(item):
+            files = item.get("videos", {})
+            largest = best_by_dimensions(
+                files.values(),
+                lambda file: (file.get("width"), file.get("height")),
+                media_type="video",
+                orientation=orientation,
+            )
+            return (
+                (largest or {}).get("width", 0),
+                (largest or {}).get("height", 0),
+            )
+
+        video = best_by_dimensions(
+            hits,
+            video_dimensions,
+            media_type="video",
+            orientation=orientation,
+        )
         files = video.get("videos", {})
-        medium = files.get("medium") or files.get("large") or files.get("small")
-        if not medium:
+        selected_file = best_by_dimensions(
+            files.values(),
+            lambda item: (item.get("width"), item.get("height")),
+            media_type="video",
+            orientation=orientation,
+        )
+        if not selected_file or not selected_file.get("url"):
             return None
         return {
             "provider": "Pixabay",
             "title": query,
-            "file_url": medium.get("url", ""),
-            "width": medium.get("width", 0),
-            "height": medium.get("height", 0),
+            "file_url": selected_file.get("url", ""),
+            "width": selected_file.get("width", 0),
+            "height": selected_file.get("height", 0),
             "mime_type": "video/mp4",
             "extension": ".mp4",
             "duration": int(video.get("duration", 0)),
@@ -109,11 +152,17 @@ class PixabayClient:
         }
 
     @classmethod
-    def search_and_download(cls, keyword: str, media_type: str, save_path: str):
+    def search_and_download(
+        cls,
+        keyword: str,
+        media_type: str,
+        save_path: str,
+        orientation: str | None = None,
+    ):
         if media_type.lower() == "image":
-            media = cls.first_image(keyword)
+            media = cls.first_image(keyword, orientation=orientation)
         elif media_type.lower() == "video":
-            media = cls.first_video(keyword)
+            media = cls.first_video(keyword, orientation=orientation)
         else:
             raise Exception("Unsupported media type.")
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================================
@@ -70,6 +70,12 @@ class MediaUpdate(BaseModel):
     file_size: Optional[int] = None
 
     status: Optional[str] = None
+
+
+class MediaDownloadRequest(BaseModel):
+    """One item downloads directly; multiple items are bundled as a ZIP."""
+
+    media_ids: list[int] = Field(min_length=1, max_length=50)
 
 
 # ==========================================================

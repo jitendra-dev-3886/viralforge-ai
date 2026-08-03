@@ -11,18 +11,27 @@ class NewsProvider:
             api_key=os.getenv("NEWS_API_KEY")
         )
 
-    def get_trending(self):
+    def get_trending(self, query: str | None = None, limit: int = 20):
 
         try:
 
-            response = self.client.get_top_headlines(
-                country="in",
-                page_size=20,
-            )
+            if query:
+                response = self.client.get_everything(
+                    q=query,
+                    language="en",
+                    sort_by="publishedAt",
+                    page_size=min(limit, 100),
+                )
+            else:
+                response = self.client.get_top_headlines(
+                    country="in",
+                    page_size=min(limit, 100),
+                )
 
             return [
-                article["title"]
-                for article in response["articles"]
+                article.get("title", "").strip()
+                for article in response.get("articles", [])
+                if article.get("title")
             ]
 
         except Exception as e:

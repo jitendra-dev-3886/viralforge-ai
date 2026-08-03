@@ -12,6 +12,25 @@ from app.core.pixabay_client import PixabayClient
 
 class DownloaderService:
 
+    @staticmethod
+    def _media_orientation(scene: Scene) -> str:
+        """Choose source media that needs the least crop for the final post."""
+        content = scene.content
+        platform = (getattr(content, "platform", "") or "").lower()
+        content_type = (getattr(content, "content_type", "") or "").lower()
+
+        if any(value in content_type for value in ("reel", "short", "story")):
+            return "portrait"
+        if "long video" in content_type or content_type == "video":
+            return "landscape"
+        if "carousel" in content_type:
+            return "portrait"
+        if "youtube" in platform and "community" not in content_type:
+            return "landscape"
+        if "instagram" in platform or "facebook" in platform:
+            return "portrait"
+        return "square"
+
     # ==========================================================
     # Download Scene Media
     # ==========================================================
@@ -178,7 +197,9 @@ class DownloaderService:
             else ".mp4"
         )
 
-        filename = f"scene_{scene.scene_number}{extension}"
+        # Scene numbers restart for each content item. Include the content id so
+        # generating several selected formats cannot overwrite previous media.
+        filename = f"content_{scene.content_id}_scene_{scene.scene_number}{extension}"
 
         filepath = os.path.join(
 
@@ -193,12 +214,14 @@ class DownloaderService:
         # ======================================================
 
         media = None
+        orientation = DownloaderService._media_orientation(scene)
 
         try:
             media = PexelsClient.search_and_download(
                 keyword=search_keyword,
                 media_type=media_type,
                 save_path=filepath,
+                orientation=orientation,
             )
         except Exception:
             media = None
@@ -209,6 +232,7 @@ class DownloaderService:
                     keyword=search_keyword,
                     media_type=media_type,
                     save_path=filepath,
+                    orientation=orientation,
                 )
             except Exception as e:
                 raise HTTPException(

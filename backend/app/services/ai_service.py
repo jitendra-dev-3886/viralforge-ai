@@ -69,12 +69,101 @@ class AIService:
         raise ValueError("No valid JSON object found in AI response")
 
     @staticmethod
+    def _requested_outputs(request: GenerateRequest) -> list[dict[str, str]]:
+        """Return the exact platform/format pairs chosen in the UI."""
+        pairs: list[dict[str, str]] = []
+
+        for output in request.outputs or []:
+            platform, separator, content_type = str(output).partition(":")
+            if separator and platform.strip() and content_type.strip():
+                pairs.append(
+                    {
+                        "platform": platform.strip(),
+                        "content_type": content_type.strip(),
+                    }
+                )
+
+        if not pairs:
+            pairs = [
+                {"platform": platform, "content_type": content_type}
+                for platform in request.platforms
+                for content_type in request.content_types
+            ]
+
+        unique_pairs = []
+        seen = set()
+        for pair in pairs:
+            key = (pair["platform"].lower(), pair["content_type"].lower())
+            if key not in seen:
+                seen.add(key)
+                unique_pairs.append(pair)
+        return unique_pairs
+
+    @staticmethod
+    def _response_key(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+    @staticmethod
+    def _format_media_type(content_types: list[str], fallback: str) -> str:
+        format_name = " ".join(content_types).lower()
+        if any(value in format_name for value in ("reel", "short", "story", "long video")):
+            return "video"
+        if any(value in format_name for value in ("carousel", "post", "quote", "community")):
+            return "image"
+        return "video" if fallback == "video" else "image"
+
+    @staticmethod
     def generate(
         request: GenerateRequest,
         db: Session,
     ):
 
         try:
+
+            requested_outputs = AIService._requested_outputs(request)
+
+            # Each selected platform/format gets its own focused AI request.
+            # This is much more reliable than asking a model to blend several
+            # formats into one response and then silently keeping the first.
+            if len(requested_outputs) > 1:
+                combined_data = {}
+                results = []
+
+                for output in requested_outputs:
+                    focused_request = request.model_copy(
+                        update={
+                            "platforms": [output["platform"]],
+                            "content_types": [output["content_type"]],
+                            "outputs": [
+                                f"{output['platform']}: {output['content_type']}"
+                            ],
+                        }
+                    )
+                    result = AIService.generate(focused_request, db)
+                    results.append(result)
+
+                    platform_key = AIService._response_key(output["platform"])
+                    content_type_key = AIService._response_key(output["content_type"])
+                    result_data = dict(result["data"])
+                    result_data["content_id"] = result["content_id"]
+                    combined_data.setdefault(platform_key, {})[content_type_key] = result_data
+
+                return {
+                    "success": True,
+                    "provider": results[0]["provider"],
+                    "content_id": results[0]["content_id"],
+                    "data": combined_data,
+                }
+
+            # Keep direct API calls with a single output just as focused as the
+            # UI flow, even if their platform/content-type arrays contain extras.
+            if requested_outputs:
+                request = request.model_copy(
+                    update={
+                        "platforms": [requested_outputs[0]["platform"]],
+                        "content_types": [requested_outputs[0]["content_type"]],
+                    }
+                )
 
             # =====================================================
             # Find Project
@@ -264,20 +353,17 @@ class AIService:
 
             output_data = extract_first_output(ai_data)
             scenes = (output_data.get("scenes") or []) if output_data else []
+            selected_format = " ".join(request.content_types).lower()
+            is_carousel_output = "carousel" in selected_format
 
             def ensure_search_fields(scene_item):
 
                 # Normalize keys
                 media_type = (scene_item.get("media_type") or "image").lower()
-
-                # If the whole request package is carousel or content types include Carousel, force image
-                try:
-                    requested_package = (request.package or "").lower()
-                except Exception:
-                    requested_package = ""
-
-                if requested_package == "carousel":
-                    media_type = "image"
+                media_type = AIService._format_media_type(
+                    request.content_types,
+                    media_type,
+                )
 
                 # image_prompt fallback
                 image_prompt = scene_item.get("image_prompt") or ""
@@ -294,9 +380,6 @@ class AIService:
                         # derive a short keyword from scene text
                         txt = scene_item.get("text") or ""
                         keyword = " ".join(txt.split()[:5]).strip() or "stock photo"
-
-                if requested_package == "carousel":
-                    media_type = "image"
 
                 if not image_prompt:
                     image_prompt = keyword
@@ -323,7 +406,7 @@ class AIService:
                 output_data["scenes"] = normalized_scenes
 
             # Enforce carousel formatting rules after AI normalization
-            if request.package and request.package.lower() == "carousel":
+            if is_carousel_output:
                 carousel_scenes = [
                     scene
                     for scene in normalized_scenes
@@ -339,7 +422,7 @@ class AIService:
                     output_data["scenes"] = carousel_scenes
 
             # Generate a short carousel story if missing
-            if request.package and request.package.lower() == "carousel":
+            if is_carousel_output:
                 target_story = ai_data if output_data is ai_data else output_data
                 if not target_story.get("story"):
                     scene_texts = [
@@ -478,21 +561,25 @@ class AIService:
                 user_id=project.user_id,
 
                 ai_data={"scenes": output_data.get("scenes", [])},
-                package=request.package,
+                package="carousel" if is_carousel_output else "",
 
             )
 
-            # Attempt to download image media for generated scenes automatically.
+            # Download the selected kind of stock media for every scene. Video
+            # scenes used to be skipped here, which left Reels and Shorts with
+            # no usable clips.
+            downloaded_media = {}
             for scene in scenes_result.get("scenes", []):
                 try:
-                    if (scene.media_type or "").lower() == "image":
-                        DownloaderService.download(
+                    if (scene.media_type or "").lower() in {"image", "video"}:
+                        media = DownloaderService.download(
                             db=db,
                             scene_id=scene.id,
                         )
+                        downloaded_media[scene.scene_number] = media
                 except Exception as e:
                     logger.warning(
-                        f"Image download failed for scene {scene.id}: {str(e)}"
+                        f"Media download failed for scene {scene.id}: {str(e)}"
                     )
                     continue
 
@@ -517,7 +604,7 @@ class AIService:
 
                     "hook": content.hook,
 
-                    "description": ai_data.get("description", ""),
+                    "description": (output_data or ai_data).get("description", ""),
 
                     "script": content.script,
 
@@ -548,8 +635,20 @@ class AIService:
                             "media_type": item.get("media_type"),
                             "duration": item.get("duration"),
                             "platform": item.get("platform"),
+                            "media_url": downloaded_media.get(
+                                item.get("scene_number") or item.get("scene"),
+                                {},
+                            ).get("file_url"),
+                            "media_provider": downloaded_media.get(
+                                item.get("scene_number") or item.get("scene"),
+                                {},
+                            ).get("provider"),
+                            "media_id": downloaded_media.get(
+                                item.get("scene_number") or item.get("scene"),
+                                {},
+                            ).get("media_id"),
                         }
-                        for item in ai_data.get("scenes", [])
+                        for item in (output_data or ai_data).get("scenes", [])
                     ],
 
                 },
