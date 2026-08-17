@@ -20,6 +20,8 @@ from app.core.gemini_client import GeminiClient
 from app.core.groq_client import groq_client
 from app.core.localai_client import localai_client
 from app.core.llama_cpp_client import llama_cpp_client
+from app.core.openrouter_client import openrouter_client
+from app.core.cerebras_client import cerebras_client
 
 
 logger = logging.getLogger(__name__)
@@ -208,6 +210,17 @@ class AIService:
                         providers_list.append("gemini")
                     if os.getenv("GROQ_API_KEY"):
                         providers_list.append("groq")
+
+                    if os.getenv("CEREBRAS_API_KEY"):
+                        providers_list.append("cerebras")
+
+                    if os.getenv("OPENROUTER_API_KEY"):
+                        providers_list.append("openrouter")
+
+                    if os.getenv("CEREBRAS_API_KEY"):
+                        providers_list.append("cerebras")
+
+                        
                     if os.getenv("LOCALAI_URL"):
                         providers_list.append("localai")
                     if os.getenv("LLAMA_CPP_MODEL_PATH"):
@@ -229,6 +242,17 @@ class AIService:
                     elif p == "groq":
                         ai_text = groq_client.generate(prompt)
                         model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+                    elif p == "cerebras":
+                            ai_text = cerebras_client.generate(prompt)
+                            model = os.getenv(
+                                "CEREBRAS_MODEL",
+                                "llama-3.3-70b"
+                            )
+
+                    elif p == "openrouter":
+                        ai_text = openrouter_client.generate(prompt)
+                        model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
 
                     elif p == "localai":
                         ai_text = localai_client.generate(prompt)

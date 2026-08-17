@@ -31,25 +31,18 @@ class ProjectRenderService:
         # ======================================================
 
         project = (
-
             db.query(Project)
-
             .filter(
                 Project.id == project_id,
             )
-
             .first()
-
         )
 
         if not project:
 
             raise HTTPException(
-
                 status_code=404,
-
                 detail="Project not found.",
-
             )
 
         # ======================================================
@@ -57,29 +50,21 @@ class ProjectRenderService:
         # ======================================================
 
         scenes = (
-
             db.query(Scene)
-
             .filter(
                 Scene.project_id == project_id,
             )
-
             .order_by(
                 Scene.scene_number.asc(),
             )
-
             .all()
-
         )
 
         if not scenes:
 
             raise HTTPException(
-
                 status_code=404,
-
                 detail="No scenes found.",
-
             )
 
         # ======================================================
@@ -87,141 +72,185 @@ class ProjectRenderService:
         # ======================================================
 
         output_folder = (
-
             ProjectRenderService.BASE_DIR
-
             / str(project_id)
-
             / "output"
-
         )
 
         output_folder.mkdir(
-
             parents=True,
-
             exist_ok=True,
-
-        )
-
-        render_folder = (
-
-            ProjectRenderService.BASE_DIR
-
-            / str(project_id)
-
-            / "render"
-
-        )
-
-        render_folder.mkdir(
-
-            parents=True,
-
-            exist_ok=True,
-
         )
 
         # ======================================================
-        # Render Missing Scenes
+        # Render Folder
+        # ======================================================
+
+        render_folder = (
+            ProjectRenderService.BASE_DIR
+            / str(project_id)
+            / "render"
+        )
+
+        render_folder.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        # ======================================================
+        # Render All Scenes
         # ======================================================
 
         rendered_files = []
 
+        total_duration = 0
+
+        first_scene_render = None
+
         for scene in scenes:
 
-            render_media = (
-
-                db.query(Media)
-
-                .filter(
-
-                    Media.project_id == project_id,
-
-                    Media.media_type == "render",
-
-                    Media.title == f"Scene {scene.scene_number} Final",
-
-                )
-
-                .first()
-
-            )
-
-            # Already rendered
-
-            if render_media and os.path.exists(render_media.file_path):
-
-                rendered_files.append(
-
-                    os.path.abspath(render_media.file_path)
-
-                )
-
-                continue
-
-            # Render Scene
-
-            RenderService.generate(
-
-                db=db,
-
-                scene_id=scene.id,
-
-            )
+            # --------------------------------------------------
+            # Find Existing Render
+            # --------------------------------------------------
 
             render_media = (
-
                 db.query(Media)
-
                 .filter(
-
                     Media.project_id == project_id,
-
                     Media.media_type == "render",
-
-                    Media.title == f"Scene {scene.scene_number} Final",
-
+                    Media.title == (
+                        f"Scene {scene.scene_number} Final"
+                    ),
                 )
-
                 .first()
-
             )
+
+            # --------------------------------------------------
+            # Check Existing File
+            # --------------------------------------------------
 
             if render_media:
 
-                rendered_files.append(
-
-                    os.path.abspath(render_media.file_path)
-
+                render_path = Path(
+                    render_media.file_path
                 )
 
-                        # ======================================================
+                if render_path.exists():
+
+                    rendered_files.append(
+                        str(
+                            render_path.resolve()
+                        )
+                    )
+
+                    if first_scene_render is None:
+                        first_scene_render = render_media
+
+                    if render_media.duration:
+                        total_duration += (
+                            render_media.duration
+                        )
+
+                    continue
+
+            # --------------------------------------------------
+            # Render Scene
+            # --------------------------------------------------
+
+            RenderService.generate(
+                db=db,
+                scene_id=scene.id,
+            )
+
+            # --------------------------------------------------
+            # Get Newly Rendered Media
+            # --------------------------------------------------
+
+            render_media = (
+                db.query(Media)
+                .filter(
+                    Media.project_id == project_id,
+                    Media.media_type == "render",
+                    Media.title == (
+                        f"Scene {scene.scene_number} Final"
+                    ),
+                )
+                .first()
+            )
+
+            if not render_media:
+
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"Scene {scene.scene_number} "
+                        f"render failed."
+                    ),
+                )
+
+            render_path = Path(
+                render_media.file_path
+            )
+
+            if not render_path.exists():
+
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"Rendered file not found for "
+                        f"scene {scene.scene_number}."
+                    ),
+                )
+
+            rendered_files.append(
+                str(
+                    render_path.resolve()
+                )
+            )
+
+            if first_scene_render is None:
+                first_scene_render = render_media
+
+            if render_media.duration:
+                total_duration += (
+                    render_media.duration
+                )
+
+        # ======================================================
         # Validate Render Files
         # ======================================================
 
         if not rendered_files:
 
             raise HTTPException(
-
                 status_code=400,
-
                 detail="No rendered scene found.",
-
             )
 
         # ======================================================
-        # Concat File
+        # Create FFmpeg Concat File
         # ======================================================
 
-        concat_file = render_folder / "concat.txt"
+        concat_file = (
+            render_folder / "concat.txt"
+        )
 
-        with open(concat_file, "w", encoding="utf-8") as f:
+        with open(
+            concat_file,
+            "w",
+            encoding="utf-8",
+        ) as f:
 
-            for file in rendered_files:
+            for file_path in rendered_files:
+
+                # FFmpeg concat format
+                normalized_path = (
+                    file_path
+                    .replace("\\", "/")
+                )
 
                 f.write(
-                    f"file '{file}'\n"
+                    f"file '{normalized_path}'\n"
                 )
 
         # ======================================================
@@ -231,11 +260,7 @@ class ProjectRenderService:
         final_filename = "final.mp4"
 
         final_output = (
-
-            output_folder
-
-            / final_filename
-
+            output_folder / final_filename
         )
 
         # ======================================================
@@ -243,15 +268,12 @@ class ProjectRenderService:
         # ======================================================
 
         FFmpegClient.concat_videos(
-
             concat_file=str(
-                concat_file.absolute()
+                concat_file.resolve()
             ),
-
             output_path=str(
-                final_output.absolute()
+                final_output.resolve()
             ),
-
         )
 
         # ======================================================
@@ -261,61 +283,41 @@ class ProjectRenderService:
         if not final_output.exists():
 
             raise HTTPException(
-
                 status_code=500,
-
                 detail="Final render failed.",
-
             )
 
-        file_size = final_output.stat().st_size
+        file_size = (
+            final_output.stat().st_size
+        )
+
+        if file_size <= 0:
+
+            raise HTTPException(
+                status_code=500,
+                detail="Final video is empty.",
+            )
 
         # ======================================================
-        # Remove Old Final Record
+        # Remove Old Final Media
         # ======================================================
 
         old_media = (
-
             db.query(Media)
-
             .filter(
-
                 Media.project_id == project_id,
-
                 Media.media_type == "final",
-
             )
-
             .first()
-
         )
 
         if old_media:
 
             db.delete(old_media)
 
-            db.commit()
+            db.flush()
 
         # ======================================================
-        # Prepare Media Object
-        # ======================================================
-
-        first_scene_render = (
-
-            db.query(Media)
-
-            .filter(
-
-                Media.project_id == project_id,
-
-                Media.media_type == "render",
-
-            )
-
-            .first()
-
-        )
-                # ======================================================
         # Save Final Media
         # ======================================================
 
@@ -333,7 +335,9 @@ class ProjectRenderService:
 
             file_name=final_filename,
 
-            file_path=str(final_output),
+            file_path=str(
+                final_output
+            ),
 
             file_url="",
 
@@ -341,16 +345,27 @@ class ProjectRenderService:
 
             extension=".mp4",
 
-            duration=first_scene_render.duration if first_scene_render else None,
+            duration=(
+                total_duration
+                if total_duration > 0
+                else None
+            ),
 
-            width=first_scene_render.width if first_scene_render else None,
+            width=(
+                first_scene_render.width
+                if first_scene_render
+                else None
+            ),
 
-            height=first_scene_render.height if first_scene_render else None,
+            height=(
+                first_scene_render.height
+                if first_scene_render
+                else None
+            ),
 
             file_size=file_size,
 
             status="ready",
-
         )
 
         db.add(media)
@@ -360,7 +375,7 @@ class ProjectRenderService:
         db.refresh(media)
 
         # ======================================================
-        # Cleanup
+        # Cleanup Concat File
         # ======================================================
 
         if concat_file.exists():
@@ -383,6 +398,8 @@ class ProjectRenderService:
 
             "file_path": media.file_path,
 
+            "duration": media.duration,
+
             "status": media.status,
 
         }
@@ -398,29 +415,19 @@ class ProjectRenderService:
     ):
 
         media = (
-
             db.query(Media)
-
             .filter(
-
                 Media.project_id == project_id,
-
                 Media.media_type == "final",
-
             )
-
             .first()
-
         )
 
         if not media:
 
             raise HTTPException(
-
                 status_code=404,
-
                 detail="Final video not found.",
-
             )
 
         return {

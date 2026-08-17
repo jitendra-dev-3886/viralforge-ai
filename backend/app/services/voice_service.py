@@ -7,11 +7,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.voice import Voice
+from app.models.media import Media
 from app.models.content import Content
 from app.models.project import Project
 from app.models.scene import Scene
-from app.schemas.voice import VoiceCreate, VoiceUpdate
 
+from app.schemas.voice import (
+    VoiceCreate,
+    VoiceUpdate,
+)
 
 
 class VoiceService:
@@ -29,33 +33,64 @@ class VoiceService:
         request: VoiceCreate,
     ):
 
+        audio_path = None
+
         try:
 
-            project = db.query(Project).filter(
-                Project.id == request.project_id,
-                Project.user_id == user_id,
-            ).first()
-            content = db.query(Content).filter(
-                Content.id == request.content_id,
-                Content.user_id == user_id,
-                Content.project_id == request.project_id,
-            ).first()
-            scene = db.query(Scene).filter(
-                Scene.id == request.scene_id,
-                Scene.user_id == user_id,
-                Scene.project_id == request.project_id,
-                Scene.content_id == request.content_id,
-            ).first()
+            # ==================================================
+            # Validate Project
+            # ==================================================
+
+            project = (
+                db.query(Project)
+                .filter(
+                    Project.id == request.project_id,
+                    Project.user_id == user_id,
+                )
+                .first()
+            )
+
+            # ==================================================
+            # Validate Content
+            # ==================================================
+
+            content = (
+                db.query(Content)
+                .filter(
+                    Content.id == request.content_id,
+                    Content.user_id == user_id,
+                    Content.project_id == request.project_id,
+                )
+                .first()
+            )
+
+            # ==================================================
+            # Validate Scene
+            # ==================================================
+
+            scene = (
+                db.query(Scene)
+                .filter(
+                    Scene.id == request.scene_id,
+                    Scene.user_id == user_id,
+                    Scene.project_id == request.project_id,
+                    Scene.content_id == request.content_id,
+                )
+                .first()
+            )
 
             if not project or not content or not scene:
+
                 return {
                     "success": False,
-                    "message": "Select a valid project, content, and scene.",
+                    "message": (
+                        "Select a valid project, content, and scene."
+                    ),
                 }
 
-            # ==========================================
+            # ==================================================
             # Create Audio Folder
-            # ==========================================
+            # ==================================================
 
             audio_dir = (
                 VoiceService.BASE_DIR
@@ -68,9 +103,9 @@ class VoiceService:
                 exist_ok=True,
             )
 
-            # ==========================================
-            # Audio File
-            # ==========================================
+            # ==================================================
+            # Audio File Name
+            # ==================================================
 
             filename = (
                 f"scene_{request.scene_id}_"
@@ -79,37 +114,43 @@ class VoiceService:
 
             audio_path = audio_dir / filename
 
-            # ==========================================
+            # ==================================================
             # Generate Audio
-            # ==========================================
+            # ==================================================
 
             communicate = edge_tts.Communicate(
-
                 text=request.text,
-
                 voice=request.voice,
-
                 rate=request.speed,
-
                 pitch=request.pitch,
-
             )
 
-            await communicate.save(str(audio_path))
-
-            # ==========================================
-            # File Size
-            # ==========================================
-
-            file_size = (
-                audio_path.stat().st_size
-                if audio_path.exists()
-                else 0
+            await communicate.save(
+                str(audio_path)
             )
 
-            # ==========================================
-            # Save Database
-            # ==========================================
+            # ==================================================
+            # Validate Audio File
+            # ==================================================
+
+            if not audio_path.exists():
+
+                raise Exception(
+                    "Voice generation completed but audio file "
+                    "was not created."
+                )
+
+            file_size = audio_path.stat().st_size
+
+            if file_size <= 0:
+
+                raise Exception(
+                    "Generated audio file is empty."
+                )
+
+            # ==================================================
+            # Create Voice Record
+            # ==================================================
 
             voice = Voice(
 
@@ -148,28 +189,124 @@ class VoiceService:
                 status="generated",
 
                 error_message=None,
-
             )
 
             db.add(voice)
+
+            db.flush()
+
+            # ==================================================
+            # Create Media Record
+            # ==================================================
+
+            media = Media(
+
+                user_id=user_id,
+
+                project_id=request.project_id,
+
+                media_type="audio",
+
+                provider=request.provider,
+
+                title=f"Scene {scene.scene_number} Voice",
+
+                file_name=filename,
+
+                file_path=str(audio_path),
+
+                file_url="",
+
+                mime_type="audio/mpeg",
+
+                extension=".mp3",
+
+                duration=0,
+
+                width=None,
+
+                height=None,
+
+                file_size=file_size,
+
+                status="ready",
+            )
+
+            db.add(media)
+
+            db.flush()
+
+            # ==================================================
+            # Commit Both Records
+            # ==================================================
 
             db.commit()
 
             db.refresh(voice)
 
+            db.refresh(media)
+
+            # ==================================================
+            # Return Response
+            # ==================================================
+
             return {
 
                 "success": True,
 
-                "message": "Voice generated successfully.",
+                "message": (
+                    "Voice generated successfully."
+                ),
 
                 "voice": voice,
 
+                "media": media,
+
             }
+
+        # ======================================================
+        # Database Error
+        # ======================================================
+
+        except SQLAlchemyError as e:
+
+            db.rollback()
+
+            # Remove generated file if DB failed
+
+            if audio_path and audio_path.exists():
+
+                try:
+                    audio_path.unlink()
+                except Exception:
+                    pass
+
+            return {
+
+                "success": False,
+
+                "message": (
+                    f"Database error: {str(e)}"
+                ),
+
+            }
+
+        # ======================================================
+        # General Error
+        # ======================================================
 
         except Exception as e:
 
             db.rollback()
+
+            # Remove generated file if generation/DB failed
+
+            if audio_path and audio_path.exists():
+
+                try:
+                    audio_path.unlink()
+                except Exception:
+                    pass
 
             return {
 
@@ -178,7 +315,8 @@ class VoiceService:
                 "message": str(e),
 
             }
-            # ==========================================================
+
+    # ==========================================================
     # Get All Voices
     # ==========================================================
 
@@ -324,7 +462,8 @@ class VoiceService:
         except SQLAlchemyError:
 
             return None
-            # ==========================================================
+
+    # ==========================================================
     # Update Voice
     # ==========================================================
 
@@ -354,11 +493,17 @@ class VoiceService:
                     "message": "Voice not found.",
                 }
 
-            data = request.model_dump(exclude_unset=True)
+            data = request.model_dump(
+                exclude_unset=True
+            )
 
             for key, value in data.items():
 
-                setattr(voice, key, value)
+                setattr(
+                    voice,
+                    key,
+                    value,
+                )
 
             db.commit()
 
@@ -368,7 +513,9 @@ class VoiceService:
 
                 "success": True,
 
-                "message": "Voice updated successfully.",
+                "message": (
+                    "Voice updated successfully."
+                ),
 
                 "voice": voice,
 
@@ -411,18 +558,48 @@ class VoiceService:
             if not voice:
 
                 return {
+
                     "success": False,
+
                     "message": "Voice not found.",
+
                 }
 
-            # Delete MP3 if exists
+            # ==================================================
+            # Delete Audio File
+            # ==================================================
+
             if voice.audio_path:
 
-                path = Path(voice.audio_path)
+                path = Path(
+                    voice.audio_path
+                )
 
                 if path.exists():
 
                     path.unlink()
+
+            # ==================================================
+            # Delete Related Media
+            # ==================================================
+
+            media = (
+                db.query(Media)
+                .filter(
+                    Media.project_id == voice.project_id,
+                    Media.media_type == "audio",
+                    Media.file_path == voice.audio_path,
+                )
+                .first()
+            )
+
+            if media:
+
+                db.delete(media)
+
+            # ==================================================
+            # Delete Voice
+            # ==================================================
 
             db.delete(voice)
 
@@ -432,7 +609,9 @@ class VoiceService:
 
                 "success": True,
 
-                "message": "Voice deleted successfully.",
+                "message": (
+                    "Voice deleted successfully."
+                ),
 
             }
 
@@ -459,7 +638,13 @@ class VoiceService:
         user_id: int,
     ):
 
+        audio_path = None
+
         try:
+
+            # ==================================================
+            # Get Voice
+            # ==================================================
 
             voice = (
                 db.query(Voice)
@@ -480,17 +665,23 @@ class VoiceService:
 
                 }
 
-            # Remove old file
+            # ==================================================
+            # Remove Old File
+            # ==================================================
 
             if voice.audio_path:
 
-                old_file = Path(voice.audio_path)
+                old_file = Path(
+                    voice.audio_path
+                )
 
                 if old_file.exists():
 
                     old_file.unlink()
 
-            # Generate new filename
+            # ==================================================
+            # Generate New Filename
+            # ==================================================
 
             filename = (
                 f"scene_{voice.scene_id}_"
@@ -508,7 +699,13 @@ class VoiceService:
                 exist_ok=True,
             )
 
-            audio_path = audio_dir / filename
+            audio_path = (
+                audio_dir / filename
+            )
+
+            # ==================================================
+            # Generate New Audio
+            # ==================================================
 
             communicate = edge_tts.Communicate(
 
@@ -522,35 +719,156 @@ class VoiceService:
 
             )
 
-            await communicate.save(str(audio_path))
+            await communicate.save(
+                str(audio_path)
+            )
+
+            if not audio_path.exists():
+
+                raise Exception(
+                    "Voice regeneration completed but "
+                    "audio file was not created."
+                )
+
+            file_size = audio_path.stat().st_size
+
+            # ==================================================
+            # Update Voice
+            # ==================================================
 
             voice.audio_name = filename
 
-            voice.audio_path = str(audio_path)
+            voice.audio_path = str(
+                audio_path
+            )
 
-            voice.file_size = audio_path.stat().st_size
+            voice.file_size = file_size
 
             voice.status = "generated"
 
             voice.error_message = None
 
+            # ==================================================
+            # Update Related Media
+            # ==================================================
+
+            media = (
+                db.query(Media)
+                .filter(
+                    Media.project_id == voice.project_id,
+                    Media.media_type == "audio",
+                    Media.title == (
+                        f"Scene {voice.scene.scene_number} Voice"
+                        if hasattr(voice, "scene")
+                        else None
+                    ),
+                )
+                .first()
+            )
+
+            # If existing media isn't found,
+            # create it.
+
+            if not media:
+
+                scene = (
+                    db.query(Scene)
+                    .filter(
+                        Scene.id == voice.scene_id,
+                        Scene.user_id == user_id,
+                    )
+                    .first()
+                )
+
+                if not scene:
+
+                    raise Exception(
+                        "Scene not found for voice."
+                    )
+
+                media = Media(
+
+                    user_id=user_id,
+
+                    project_id=voice.project_id,
+
+                    media_type="audio",
+
+                    provider=voice.provider,
+
+                    title=(
+                        f"Scene "
+                        f"{scene.scene_number} Voice"
+                    ),
+
+                    file_name=filename,
+
+                    file_path=str(audio_path),
+
+                    file_url="",
+
+                    mime_type="audio/mpeg",
+
+                    extension=".mp3",
+
+                    duration=0,
+
+                    width=None,
+
+                    height=None,
+
+                    file_size=file_size,
+
+                    status="ready",
+
+                )
+
+                db.add(media)
+
+            else:
+
+                media.file_name = filename
+
+                media.file_path = str(
+                    audio_path
+                )
+
+                media.file_size = file_size
+
+                media.provider = voice.provider
+
+                media.status = "ready"
+
             db.commit()
 
             db.refresh(voice)
+
+            db.refresh(media)
 
             return {
 
                 "success": True,
 
-                "message": "Voice regenerated successfully.",
+                "message": (
+                    "Voice regenerated successfully."
+                ),
 
                 "voice": voice,
+
+                "media": media,
 
             }
 
         except Exception as e:
 
             db.rollback()
+
+            if audio_path and audio_path.exists():
+
+                try:
+                    audio_path.unlink()
+                except Exception:
+                    pass
 
             return {
 
