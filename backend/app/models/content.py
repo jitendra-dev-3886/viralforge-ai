@@ -5,6 +5,7 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     DateTime,
+    JSON,
 )
 
 from sqlalchemy.orm import relationship
@@ -119,6 +120,8 @@ class Content(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    generation_config = Column(JSON, nullable=True)
 
     # =====================================
     # Relationships
