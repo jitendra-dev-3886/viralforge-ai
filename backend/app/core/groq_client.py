@@ -4,61 +4,117 @@ from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
 
+
+# ---------------------------------------------------------
+# Environment
+# ---------------------------------------------------------
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 load_dotenv(BASE_DIR / ".env")
 
 
+# ---------------------------------------------------------
+# Groq Client
+# ---------------------------------------------------------
+
 class GroqClient:
 
     def __init__(self):
-        self.client = Groq(
-            api_key=os.getenv("GROQ_API_KEY")
+        self.api_key = os.getenv("GROQ_API_KEY")
+
+        if not self.api_key:
+            raise RuntimeError("GROQ_API_KEY is not configured")
+
+        self.client = Groq(api_key=self.api_key)
+
+        # FREE models for now.
+        # Later, simply change GROQ_MODELS in .env.
+        self.models = self._load_models()
+
+        self.max_tokens = int(
+            os.getenv("GROQ_MAX_TOKENS", "1200")
         )
+
+        self.temperature = float(
+            os.getenv("GROQ_TEMPERATURE", "0.7")
+        )
+
+    # -----------------------------------------------------
+    # Load models
+    # -----------------------------------------------------
+
+    def _load_models(self):
+        models = os.getenv(
+            "GROQ_MODELS",
+            "llama-3.1-8b-instant"
+        )
+
+        return [
+            model.strip()
+            for model in models.split(",")
+            if model.strip()
+        ]
+
+    # -----------------------------------------------------
+    # Generate
+    # -----------------------------------------------------
 
     def generate(self, prompt: str):
 
-        # The 8B model has a much larger free-tier daily token allowance than
-        # the 70B default and is sufficient for structured social content.
-        model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        last_error = None
 
-        # Free Groq model options include:
-        # canopylabs/orpheus-arabic-saudi
-        # canopylabs/orpheus-v1-english
-        # groq/compound
-        # groq/compound-mini
-        # llama-3.1-8b-instant
-        # llama-3.3-70b-versatile
-        # meta-llama/llama-prompt-guard-2-22m
-        # meta-llama/llama-prompt-guard-2-86m
-        # openai/gpt-oss-120b
-        # openai/gpt-oss-20b
-        # openai/gpt-oss-safeguard-20b
-        # qwen/qwen3.6-27b
-        # whisper-large-v3
-        # whisper-large-v3-turbo
+        for model in self.models:
 
-        response = self.client.chat.completions.create(
+            try:
 
-            model=model,
+                print(f"[Groq] Trying model: {model}")
 
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are ViralForge AI."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
+                response = self.client.chat.completions.create(
 
-            temperature=0.7,
-            max_tokens=int(os.getenv("GROQ_MAX_TOKENS", "1200")),
+                    model=model,
+
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are ViralForge AI."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+
+                    temperature=self.temperature,
+
+                    max_tokens=self.max_tokens,
+                )
+
+                content = response.choices[0].message.content
+
+                if content:
+                    print(f"[Groq] Success: {model}")
+                    return content
+
+            except Exception as e:
+
+                last_error = e
+
+                print(
+                    f"[Groq] Failed: {model} -> {e}"
+                )
+
+                # Try the next model
+                continue
+
+        # All models failed
+        raise RuntimeError(
+            f"All configured Groq models failed: {last_error}"
         )
 
-        return response.choices[0].message.content
 
+# ---------------------------------------------------------
+# Singleton
+# ---------------------------------------------------------
 
-# Singleton Instance
 groq_client = GroqClient()
