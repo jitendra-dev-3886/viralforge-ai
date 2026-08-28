@@ -22,6 +22,8 @@ from app.core.localai_client import localai_client
 from app.core.llama_cpp_client import llama_cpp_client
 from app.core.openrouter_client import openrouter_client
 from app.core.cerebras_client import cerebras_client
+from app.core.ollama_client import ollama_client
+
 
 
 logger = logging.getLogger(__name__)
@@ -216,15 +218,13 @@ class AIService:
 
                     if os.getenv("OPENROUTER_API_KEY"):
                         providers_list.append("openrouter")
-
-                    if os.getenv("CEREBRAS_API_KEY"):
-                        providers_list.append("cerebras")
-
                         
                     if os.getenv("LOCALAI_URL"):
                         providers_list.append("localai")
                     if os.getenv("LLAMA_CPP_MODEL_PATH"):
                         providers_list.append("llama_cpp")
+                    if os.getenv("OLLAMA_URL"):
+                        providers_list.append("ollama")
                 else:
                     providers_list = [reqp]
 
@@ -254,9 +254,22 @@ class AIService:
                         ai_text = openrouter_client.generate(prompt)
                         model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
 
+                    elif p == "ollama":
+                        
+                            ai_text = ollama_client.generate(prompt)
+
+                            model = os.getenv(
+                                "OLLAMA_MODEL",
+                                "qwen3:4b"
+                            )
+
                     elif p == "localai":
                         ai_text = localai_client.generate(prompt)
                         model = os.getenv("LOCALAI_MODEL", "local-model")
+                        
+                    elif p == "ollama":
+                        ai_text = ollama_client.generate(prompt)
+                        model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 
                     elif p in ("llama_cpp", "llamacpp"):
                         ai_text = llama_cpp_client.generate(prompt)
