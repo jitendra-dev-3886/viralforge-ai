@@ -104,34 +104,38 @@ export default function ProjectCreate() {
                 <div className="grid gap-6 md:grid-cols-3">
                     <label className="space-y-2 text-sm font-medium text-slate-700">
                         Platform *
-                        <input
+                        <select
                             name="platform"
-                            value={formData.platform}
-                            onChange={handleChange}
-                            required
-                            className="w-full rounded-2xl border px-4 py-3 text-slate-900"
-                            placeholder="e.g. YouTube"
-                        />
+                                className="w-full rounded-2xl border px-4 py-3 text-slate-900">
+                                <option value="">Select</option>
+                                <option value="Instagram">Instagram</option>
+                                <option value="Facebook">Facebook</option>
+                                <option value="YouTube">YouTube</option>
+                        </select>
                     </label>
+
                     <label className="space-y-2 text-sm font-medium text-slate-700">
                         Content Type *
-                        <input
+                        <select
                             name="content_type"
-                            value={formData.content_type}
-                            onChange={handleChange}
-                            required
-                            className="w-full rounded-2xl border px-4 py-3 text-slate-900"
-                            placeholder="e.g. Video"
-                        />
+                                className="w-full rounded-2xl border px-4 py-3 text-slate-900">
+                                <option value="">Select</option>
+                                <option value="Reel">Reel</option>
+                                <option value="Crausal">Crausal</option>
+                                <option value="Story">Story</option>
+                                <option value="Post">Post</option>
+                                <option value="Quote">Quote</option>
+                        </select>
                     </label>
                     <label className="space-y-2 text-sm font-medium text-slate-700">
                         Language
-                        <input
+                        <select
                             name="language"
-                            value={formData.language}
-                            onChange={handleChange}
-                            className="w-full rounded-2xl border px-4 py-3 text-slate-900"
-                        />
+                                className="w-full rounded-2xl border px-4 py-3 text-slate-900">
+                                <option value="">Select</option>
+                                <option value="English">English</option>
+                                <option value="Hindi">Hindi</option>
+                        </select>
                     </label>
                 </div>
 
@@ -144,7 +148,7 @@ export default function ProjectCreate() {
                             onChange={handleChange}
                             className="w-full rounded-2xl border px-4 py-3 text-slate-900"
                         >
-                            <option value="">No brand</option>
+                            <option value="">Select</option>
                             {brands.map((brand) => (
                                 <option key={brand.id} value={brand.id}>
                                     {brand.name}

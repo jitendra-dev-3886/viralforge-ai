@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useBrand } from "../../context/BrandContext";
+import { assetUrl } from "../../api/axios";
 export default function BrandPage() {
     const { brands, loading, loadBrands, removeBrand } = useBrand();
 
@@ -54,10 +55,7 @@ export default function BrandPage() {
                         <div key={brand.id} className="rounded-2xl border hover:shadow-xl transition bg-white">
                             <div className="p-6">
                                 <div className="flex items-center gap-4">
-                                    <div
-                                        className="w-14 h-14 rounded-xl"
-                                        style={{ background: brand.primary_color || '#e5e7eb' }}
-                                    />
+                                    <img src={assetUrl(brand.logo)} alt="Current brand logo" className="w-14 h-14 rounded-xl" />
                                     <div>
                                         <h2 className="font-semibold text-lg">{brand.name}</h2>
                                         <p className="text-gray-500">{brand.niche || "No niche set"}</p>

@@ -144,8 +144,8 @@ export default function CreateBrand() {
                     </label>
                     <input
                         type="url"
-                        name="logo"
-                        value={formData.logo}
+                        name="website"
+                        value={formData.website}
                         onChange={handleChange}
                         className="w-full p-3 border rounded-xl"
                         placeholder="https://example.com/logo.png"
