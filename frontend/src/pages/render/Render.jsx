@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { getProjects } from "../../api/project";
-import { generateProjectRender, getFinalProjectVideo } from "../../api/projectRender";
+import { getProjectContents } from "../../api/content";
+import { generateProjectRender, getFinalProjectVideo, uploadProjectMusic } from "../../api/projectRender";
+import { assetUrl } from "../../api/axios";
 
 export default function RenderPage() {
     const [projects, setProjects] = useState([]);
     const [selectedProjectId, setSelectedProjectId] = useState(null);
+    const [contents, setContents] = useState([]);
+    const [selectedContentId, setSelectedContentId] = useState("");
+    const [musicFile, setMusicFile] = useState(null);
     const [renderResult, setRenderResult] = useState(null);
     const [finalVideo, setFinalVideo] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -46,6 +51,15 @@ export default function RenderPage() {
         loadFinalVideo();
     }, [selectedProjectId]);
 
+    useEffect(() => {
+        if (!selectedProjectId) return;
+        getProjectContents(selectedProjectId).then((response) => {
+            const items = response.contents || [];
+            setContents(items);
+            setSelectedContentId(items[0]?.id || "");
+        }).catch(() => { setContents([]); setSelectedContentId(""); });
+    }, [selectedProjectId]);
+
     const handleGenerateRender = async () => {
         if (!selectedProjectId) {
             setError("Please select a project first.");
@@ -56,7 +70,8 @@ export default function RenderPage() {
         setError(null);
 
         try {
-            const response = await generateProjectRender(selectedProjectId);
+            if (musicFile) await uploadProjectMusic(selectedProjectId, musicFile);
+            const response = await generateProjectRender(selectedProjectId, selectedContentId);
             setRenderResult(response);
             if (response.success) {
                 const finalResponse = await getFinalProjectVideo(selectedProjectId);
@@ -64,14 +79,14 @@ export default function RenderPage() {
             }
         } catch (err) {
             console.error(err);
-            setError("Unable to generate project render.");
+            setError(err.response?.data?.detail || "Unable to generate project render. Confirm FFmpeg is installed on the backend.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="p-8">
+        <div className="p-1 sm:p-4 lg:p-8">
             <h1 className="text-3xl font-bold mb-6">Project Render</h1>
 
             <div className="mb-6 max-w-2xl">
@@ -88,6 +103,11 @@ export default function RenderPage() {
                         </option>
                     ))}
                 </select>
+            </div>
+
+            <div className="mb-6 max-w-2xl space-y-4">
+                <div><label className="mb-2 block text-sm font-medium text-slate-700">Generated content</label><select value={selectedContentId} onChange={(event) => setSelectedContentId(Number(event.target.value))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"><option value="" disabled>Select content</option>{contents.map((content) => <option key={content.id} value={content.id}>{content.title} — {content.content_type}</option>)}</select></div>
+                <div><label className="mb-2 block text-sm font-medium text-slate-700">Background music (optional)</label><input type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg" onChange={(event) => setMusicFile(event.target.files?.[0] || null)} className="block w-full rounded-2xl border border-slate-300 bg-white p-3 text-sm" /><p className="mt-1 text-xs text-slate-500">Music is looped at low volume beneath scene narration. Maximum 25 MB.</p></div>
             </div>
 
             {error && (
@@ -114,10 +134,11 @@ export default function RenderPage() {
             {finalVideo && (
                 <div className="mt-8 bg-white rounded-3xl shadow-lg p-6">
                     <h2 className="text-xl font-bold mb-4">Final Video</h2>
+                    <video controls playsInline className="mb-5 max-h-[70vh] w-full rounded-2xl bg-black" src={assetUrl(finalVideo.file_url)} />
                     <div className="space-y-3 text-slate-700">
                         <div><strong>File Name:</strong> {finalVideo.file_name}</div>
                         <div><strong>Status:</strong> {finalVideo.status}</div>
-                        <div><strong>URL:</strong> {finalVideo.file_url || finalVideo.file_path}</div>
+                        <div className="break-all"><strong>URL:</strong> {assetUrl(finalVideo.file_url) || finalVideo.file_path}</div>
                         <div><strong>MIME Type:</strong> {finalVideo.mime_type}</div>
                         <div><strong>Duration:</strong> {finalVideo.duration || "N/A"} seconds</div>
                     </div>

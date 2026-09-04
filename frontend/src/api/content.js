@@ -1,39 +1,33 @@
 import api from "./axios";
 
-export const createContent = async (payload, userId = 1) => {
-    const response = await api.post(`/content/?user_id=${userId}`, payload);
+export const createContent = async (payload) => {
+    const response = await api.post("/content/", payload);
     return response.data;
 };
 
-export const getAllContents = async (userId = 1) => {
+export const getAllContents = async (filters = {}) => {
     const response = await api.get("/content/", {
-        params: { user_id: userId },
+        params: filters,
     });
     return response.data;
 };
 
-export const getContent = async (contentId, userId = 1) => {
-    const response = await api.get(`/content/${contentId}`, {
-        params: { user_id: userId },
-    });
+export const getContent = async (contentId) => {
+    const response = await api.get(`/content/${contentId}`);
     return response.data;
 };
 
-export const getProjectContents = async (projectId, userId = 1) => {
-    const response = await api.get(`/content/project/${projectId}`, {
-        params: { user_id: userId },
-    });
+export const getProjectContents = async (projectId) => {
+    const response = await api.get(`/content/project/${projectId}`);
     return response.data;
 };
 
-export const updateContent = async (contentId, payload, userId = 1) => {
-    const response = await api.put(`/content/${contentId}?user_id=${userId}`, payload);
+export const updateContent = async (contentId, payload) => {
+    const response = await api.put(`/content/${contentId}`, payload);
     return response.data;
 };
 
-export const deleteContent = async (contentId, userId = 1) => {
-    const response = await api.delete(`/content/${contentId}`, {
-        params: { user_id: userId },
-    });
+export const deleteContent = async (contentId) => {
+    const response = await api.delete(`/content/${contentId}`);
     return response.data;
 };

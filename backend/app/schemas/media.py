@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class MediaCreate(BaseModel):
 
-    user_id: int
+    user_id: Optional[int] = None
 
     project_id: int
 

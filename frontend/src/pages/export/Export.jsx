@@ -1,8 +1,5 @@
-export default function ExportPage() {
-    return (
-        <div className="p-8">
-            <h1 className="text-3xl font-bold mb-4">Export</h1>
-            <p className="text-slate-500">Export your final videos, subtitles, and content assets from here.</p>
-        </div>
-    );
-}
+import { useEffect,useState } from "react";
+import { downloadMedia,getAllMedia } from "../../api/media";
+import { assetUrl } from "../../api/axios";
+
+export default function ExportPage(){const[media,setMedia]=useState([]);const[selected,setSelected]=useState([]);const[error,setError]=useState("");useEffect(()=>{getAllMedia().then(r=>setMedia((r.media||[]).filter(x=>["final","render","image","video","audio"].includes(x.media_type)))).catch(()=>setError("Unable to load exports."));},[]);const toggle=id=>setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);return <div className="p-1 sm:p-4 lg:p-8"><h1 className="text-3xl font-bold">Export Center</h1><p className="mt-2 text-slate-500">Download final videos, carousel images, scene media and narration.</p>{error&&<p className="mt-4 text-red-600">{error}</p>}{selected.length>0&&<button onClick={()=>downloadMedia(selected)} className="sticky top-3 z-10 mt-4 rounded-xl bg-indigo-600 px-5 py-3 text-white">Download {selected.length} selected as ZIP</button>}<div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{media.map(item=><article key={item.id} className="rounded-2xl bg-white p-4 shadow-sm"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected.includes(item.id)} onChange={()=>toggle(item.id)}/><strong>{item.title||item.file_name}</strong></label><p className="mt-2 text-xs uppercase text-slate-500">{item.media_type} · {item.width||"—"}×{item.height||"—"}</p>{item.file_url&&item.mime_type?.startsWith("video")&&<video src={assetUrl(item.file_url)} controls className="mt-3 h-44 w-full rounded-xl bg-black object-contain"/>}{item.file_url&&item.mime_type?.startsWith("image")&&<img src={assetUrl(item.file_url)} className="mt-3 h-44 w-full rounded-xl object-cover"/>}<button onClick={()=>downloadMedia([item.id])} className="mt-3 rounded-lg border px-3 py-2 text-sm">Download</button></article>)}</div>{media.length===0&&<div className="mt-6 rounded-xl border border-dashed p-10 text-center text-slate-500">Render content to create exportable files.</div>}</div>}

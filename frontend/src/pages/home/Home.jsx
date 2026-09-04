@@ -30,7 +30,7 @@ dark:border-slate-800
 
 <div className="
 max-w-7xl mx-auto
-px-6 py-4
+px-3 py-4 sm:px-6
 flex justify-between items-center
 ">
 
@@ -51,7 +51,7 @@ VF
 
 
 <h1 className="
-text-2xl font-bold
+hidden text-2xl font-bold sm:block
 ">
 
 ViralForge AI
@@ -83,7 +83,7 @@ ViralForge AI
 <Link
 to="/login"
 className="
-px-5 py-2
+hidden px-5 py-2 sm:block
 rounded-xl
 border
 dark:border-slate-700
@@ -98,7 +98,7 @@ Login
 <Link
 to="/register"
 className="
-px-5 py-2
+px-3 py-2 sm:px-5
 rounded-xl
 bg-purple-600
 text-white

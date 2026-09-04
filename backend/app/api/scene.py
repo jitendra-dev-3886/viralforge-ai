@@ -7,15 +7,28 @@ from app.core.security import get_current_user_id
 from app.schemas.scene import (
     SceneCreate,
     SceneUpdate,
+    SceneReorder,
 )
 
 from app.services.scene_service import SceneService
+from app.models.scene import Scene
 
 
 router = APIRouter(
     prefix="/api/scenes",
     tags=["Scenes"],
 )
+
+@router.put("/content/{content_id}/reorder")
+def reorder_scenes(content_id: int, request: SceneReorder, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+    scenes = db.query(Scene).filter_by(content_id=content_id, user_id=user_id).all()
+    if {scene.id for scene in scenes} != set(request.scene_ids):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Scene order must contain every scene exactly once.")
+    by_id = {scene.id: scene for scene in scenes}
+    for number, scene_id in enumerate(request.scene_ids, 1): by_id[scene_id].scene_number = number
+    db.commit()
+    return {"success": True}
 
 
 # ==========================================================
@@ -90,7 +103,7 @@ def get_all_scenes(
 # Get Scene By ID
 # ==========================================================
 
-@router.get("/{scene_id}")
+@router.get("/{scene_id:int}")
 def get_scene(
     scene_id: int,
     db: Session = Depends(get_db),
@@ -164,7 +177,7 @@ def get_content_scenes(
 # Update Scene
 # ==========================================================
 
-@router.put("/{scene_id}")
+@router.put("/{scene_id:int}")
 def update_scene(
     scene_id: int,
     request: SceneUpdate,
@@ -183,7 +196,7 @@ def update_scene(
 # Delete Scene
 # ==========================================================
 
-@router.delete("/{scene_id}")
+@router.delete("/{scene_id:int}")
 def delete_scene(
     scene_id: int,
     db: Session = Depends(get_db),

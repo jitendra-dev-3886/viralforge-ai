@@ -1,114 +1,17 @@
-import {
-    Quote,
-    Clapperboard,
-    Images,
-    BookOpen,
-    Package,
-} from "lucide-react";
+import { BookOpen, Clapperboard, Images, Package, Quote } from "lucide-react";
 
-const packages = [
+const packages=[{id:"quote",title:"Quote",description:"Two-line quote",icon:Quote},{id:"reel",title:"Reel",description:"Short-form video",icon:Clapperboard},{id:"carousel",title:"Carousel",description:"Multi-slide story",icon:Images},{id:"story",title:"Short Story",description:"Hook to ending",icon:BookOpen},{id:"complete",title:"Complete Package",description:"Everything included",icon:Package}];
+const languages=["Hindi","English","Hinglish"];
 
-    {
-        id: "quote",
-        title: "Quote",
-        description: "Motivational Quote + Caption",
-        icon: Quote,
-    },
-
-    {
-        id: "reel",
-        title: "Reel",
-        description: "30-60 sec Viral Reel",
-        icon: Clapperboard,
-    },
-
-    {
-        id: "carousel",
-        title: "Carousel",
-        description: "8-10 Story Slides",
-        icon: Images,
-    },
-
-    {
-        id: "story",
-        title: "Short Story",
-        description: "Story with Hook & Ending",
-        icon: BookOpen,
-    },
-
-    {
-        id: "complete",
-        title: "Complete Package",
-        description: "Everything Included",
-        icon: Package,
-    },
-
-];
-
-export default function PackageSelector({
-
-    selected,
-    onChange,
-
-}) {
-
-    return (
-
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-            <h2 className="mb-1 text-lg font-semibold text-slate-900">
-                4. Choose a package
-            </h2>
-            <p className="mb-4 text-sm text-slate-500">Choose the depth and output style for this generation.</p>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-
-                {packages.map((item) => {
-
-                    const Icon = item.icon;
-
-                    return (
-
-                        <button
-                            type="button"
-                            key={item.id}
-                            onClick={() => onChange(item.id)}
-                            className={`rounded-xl border p-4 text-left transition duration-200
-
-                            ${
-                                selected === item.id
-                                    ? "border-blue-600 bg-blue-50 shadow-sm"
-                                    : "border-slate-200 bg-white hover:border-blue-400"
-                            }`}
-                        >
-
-                            <Icon
-                                size={26}
-                                className="text-blue-600"
-                            />
-
-                            <h3 className="mt-3 text-sm font-semibold text-slate-900">
-
-                                {item.title}
-
-                            </h3>
-
-                            <p className="mt-1 text-xs text-slate-500">
-
-                                {item.description}
-
-                            </p>
-
-                        </button>
-
-                    );
-
-                })}
-
-            </div>
-
-        </section>
-
-    );
-
+export default function PackageSelector({selected,onChange,quoteLanguage="English",onQuoteLanguageChange,showQuoteOptions=false,options,onOptionsChange}){
+ const update=(key,value)=>onOptionsChange?.({...options,[key]:value});
+ const languageButtons=(includeHinglish=true)=><div className="flex flex-wrap gap-2">{languages.filter(x=>includeHinglish||x!=="Hinglish").map(language=><button key={language} type="button" onClick={()=>{update("language",language);onQuoteLanguageChange?.(language);}} className={`rounded-lg border px-3 py-2 text-sm ${((options?.language||quoteLanguage)===language)?"border-indigo-600 bg-indigo-600 text-white":"bg-white"}`}>{language==="Hindi"?"हिंदी":language}</button>)}</div>;
+ return <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-semibold">4. Choose a package</h2><p className="mb-4 mt-1 text-sm text-slate-500">Choose a format, then customize its output.</p><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{packages.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} onClick={()=>onChange(item.id)} className={`rounded-xl border p-4 text-left ${selected===item.id?"border-blue-600 bg-blue-50":"border-slate-200"}`}><Icon className="text-blue-600"/><h3 className="mt-3 font-semibold">{item.title}</h3><p className="text-xs text-slate-500">{item.description}</p></button>})}</div>
+ {(selected==="quote"||showQuoteOptions)&&<div className="mt-5 rounded-xl bg-amber-50 p-4"><h3 className="font-semibold">Two-line Quote / Suvichar</h3><p className="mb-3 text-xs text-slate-500">One image with exactly two short lines.</p>{languageButtons(false)}</div>}
+ {selected==="reel"&&<Options title="Reel options">{languageButtons()}<Select label="Length" value={options.total_duration} onChange={v=>update("total_duration",Number(v))} values={[[15,"15 seconds"],[30,"30 seconds"],[60,"60 seconds"]]}/><Select label="Scenes" value={options.scene_count} onChange={v=>update("scene_count",Number(v))} values={[[5,"5 scenes"],[7,"7 scenes"],[10,"10 scenes"]]}/><Select label="Style" value={options.style} onChange={v=>update("style",v)} values={["Energetic","Educational","Storytelling","Promotional"]}/></Options>}
+ {selected==="carousel"&&<Options title="Carousel options">{languageButtons()}<Select label="Slides" value={options.scene_count} onChange={v=>update("scene_count",Number(v))} values={[[3,"3 slides"],[5,"5 slides"],[7,"7 slides"],[10,"10 slides"]]}/><Select label="Style" value={options.style} onChange={v=>update("style",v)} values={["Educational","Storytelling","Listicle","Promotional"]}/></Options>}
+ {selected==="story"&&<Options title="Short-story options">{languageButtons()}<Select label="Scenes" value={options.scene_count} onChange={v=>update("scene_count",Number(v))} values={[[5,"5 scenes"],[7,"7 scenes"],[10,"10 scenes"]]}/><Select label="Tone" value={options.style} onChange={v=>update("style",v)} values={["Emotional","Inspirational","Suspenseful","Funny"]}/></Options>}
+ </section>;
 }
+function Options({title,children}){return <div className="mt-5 grid gap-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><h3 className="font-semibold sm:col-span-2 lg:col-span-4">{title}</h3>{children}</div>}
+function Select({label,value,onChange,values}){return <label className="text-sm font-medium">{label}<select value={value} onChange={e=>onChange(e.target.value)} className="mt-1 block w-full rounded-lg border bg-white p-2.5">{values.map(valueItem=>{const value=Array.isArray(valueItem)?valueItem[0]:valueItem;const text=Array.isArray(valueItem)?valueItem[1]:valueItem;return <option key={value} value={value}>{text}</option>})}</select></label>}

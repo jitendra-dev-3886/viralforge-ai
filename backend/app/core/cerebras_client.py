@@ -19,30 +19,25 @@ class CerebrasClient:
 
     def generate(self, prompt: str):
 
-        model = os.getenv(
-            "CEREBRAS_MODEL",
-            "llama-3.3-70b"
-        )
-
-        response = self.client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are ViralFlow AI."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.7,
-            max_tokens=int(
-                os.getenv("CEREBRAS_MAX_TOKENS", "1200")
-            ),
-        )
-
-        return response.choices[0].message.content
+        configured = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+        models = list(dict.fromkeys([configured, "gpt-oss-120b", "gemma-4-31b"]))
+        last_error = None
+        for model in models:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are ViralForge AI."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=int(os.getenv("CEREBRAS_MAX_TOKENS", "1200")),
+                )
+                self.last_model = model
+                return response.choices[0].message.content
+            except Exception as exc:
+                last_error = exc
+        raise RuntimeError(f"All configured Cerebras models failed: {last_error}")
 
 
 cerebras_client = CerebrasClient()

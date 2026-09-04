@@ -52,7 +52,7 @@ export default function AIGenerator() {
 
         <div className="min-h-screen bg-slate-100">
 
-            <div className="max-w-7xl mx-auto p-10">
+            <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10">
 
                 <div>
 
@@ -80,7 +80,7 @@ export default function AIGenerator() {
 
                     {/* LEFT */}
 
-                    <div className="bg-white rounded-2xl shadow p-8">
+                    <div className="rounded-2xl bg-white p-4 shadow sm:p-8">
 
                         <h2 className="text-xl font-bold">
 
@@ -132,7 +132,7 @@ export default function AIGenerator() {
 
                     {/* RIGHT */}
 
-                    <div className="bg-white rounded-2xl shadow p-8">
+                    <div className="rounded-2xl bg-white p-4 shadow sm:p-8">
 
                         <div className="flex justify-between">
 

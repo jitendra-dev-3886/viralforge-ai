@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pathlib import Path
+import uuid
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,6 +15,46 @@ router = APIRouter(
     prefix="/api/brands",
     tags=["Brands"],
 )
+
+
+@router.post("/logo")
+async def upload_brand_logo(
+    file: UploadFile = File(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Store a reusable brand logo and return its public storage URL."""
+    extension = Path(file.filename or "").suffix.lower()
+    allowed = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
+    if extension not in allowed:
+        raise HTTPException(status_code=400, detail="Upload a PNG, JPG, JPEG, or WebP logo.")
+
+    folder = Path(__file__).resolve().parents[2] / "storage" / "brands" / str(user_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = f"logo_{uuid.uuid4().hex}{extension}"
+    path = folder / filename
+    size = 0
+    try:
+        with path.open("wb") as destination:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > 5 * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="Logo image must be 5 MB or smaller.")
+                destination.write(chunk)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="The uploaded logo image is empty.")
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+    return {
+        "success": True,
+        "logo_url": f"/storage/brands/{user_id}/{filename}",
+    }
 
 
 # ==========================================================

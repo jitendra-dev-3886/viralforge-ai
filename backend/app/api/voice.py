@@ -39,7 +39,7 @@ async def generate_voice(
 # Get Voice By ID
 # ==========================================================
 
-@router.get("/{voice_id}")
+@router.get("/{voice_id:int}")
 def get_voice(
     voice_id: int,
     db: Session = Depends(get_db),
@@ -128,7 +128,7 @@ def get_scene_voice(
 # Update Voice
 # ==========================================================
 
-@router.put("/{voice_id}")
+@router.put("/{voice_id:int}")
 def update_voice(
     voice_id: int,
     request: VoiceUpdate,
@@ -147,7 +147,7 @@ def update_voice(
 # Delete Voice
 # ==========================================================
 
-@router.delete("/{voice_id}")
+@router.delete("/{voice_id:int}")
 def delete_voice(
     voice_id: int,
     db: Session = Depends(get_db),
@@ -164,7 +164,7 @@ def delete_voice(
 # Regenerate Voice
 # ==========================================================
 
-@router.post("/{voice_id}/regenerate")
+@router.post("/{voice_id:int}/regenerate")
 async def regenerate_voice(
     voice_id: int,
     db: Session = Depends(get_db),

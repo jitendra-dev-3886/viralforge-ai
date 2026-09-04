@@ -41,3 +41,4 @@ google-genai
 openai
 cerebras-cloud-sdk
 edge-tts
+imageio-ffmpeg>=0.6,<1

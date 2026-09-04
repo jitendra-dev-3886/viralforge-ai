@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 
 import { generateContent } from "../../api/ai";
 import { useProject } from "../../context/ProjectContext";
@@ -10,6 +10,8 @@ import PreviewPanel from "./PreviewPanel";
 import PlatformSelector from "./PlatformSelector";
 import ContentTypeSelector from "./ContentTypeSelector";
 import SummaryPanel from "./SummaryPanel";
+import { AuthContext } from "../../context/AuthContext";
+import { useBrand } from "../../context/BrandContext";
 
 export default function AIStudio() {
 
@@ -18,6 +20,8 @@ export default function AIStudio() {
     const [selectedTopic, setSelectedTopic] = useState("");
 
     const [selectedPackage, setSelectedPackage] = useState("complete");
+    const [quoteLanguage, setQuoteLanguage] = useState("Hindi");
+    const [generationOptions, setGenerationOptions] = useState({ language: "Hindi", scene_count: 7, total_duration: 30, style: "Educational" });
     const [selectedProvider, setSelectedProvider] = useState("auto");
 
     const [loading, setLoading] = useState(false);
@@ -27,8 +31,23 @@ export default function AIStudio() {
     const [selectedProjectId, setSelectedProjectId] = useState(null);
 
     const { projects } = useProject();
+    const { brands } = useBrand();
+    const { user } = useContext(AuthContext);
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [selectedContent, setSelectedContent] = useState([]);
+    const hasQuoteOutput = selectedContent.some((item) => item.endsWith(":quote"));
+
+    const selectedProject = useMemo(
+        () => projects.find((project) => Number(project.id) === Number(selectedProjectId)),
+        [projects, selectedProjectId],
+    );
+    const selectedBrand = useMemo(
+        () => brands.find((brand) => Number(brand.id) === Number(selectedProject?.brand_id)),
+        [brands, selectedProject?.brand_id],
+    );
+    const branding = generatedContent?.branding || generatedContent?.data?.branding || {};
+    const overlayUsername = branding.username || user?.name || selectedBrand?.name || "";
+    const overlayLogo = branding.logo || selectedBrand?.logo || "";
 
     const isReady = Boolean(
         selectedProjectId
@@ -128,6 +147,10 @@ export default function AIStudio() {
                 niche: selectedNiche,
                 topic: selectedTopic,
                 package: selectedPackage,
+                language: ["quote","reel","carousel","story"].includes(selectedPackage) || hasQuoteOutput ? generationOptions.language : (selectedProject?.language || "English"),
+                scene_count: ["reel","carousel","story"].includes(selectedPackage) ? generationOptions.scene_count : undefined,
+                total_duration: selectedPackage === "reel" ? generationOptions.total_duration : undefined,
+                style: ["reel","carousel","story"].includes(selectedPackage) ? generationOptions.style : undefined,
                 provider: selectedProvider,
             };
 
@@ -275,7 +298,16 @@ export default function AIStudio() {
 
             <PackageSelector
                 selected={selectedPackage}
-                onChange={setSelectedPackage}
+                onChange={(value) => {
+                    setSelectedPackage(value);
+                    const defaults = value === "carousel" ? { scene_count: 5, total_duration: 25, style: "Educational" } : value === "story" ? { scene_count: 7, total_duration: 35, style: "Emotional" } : value === "reel" ? { scene_count: 7, total_duration: 30, style: "Energetic" } : {};
+                    setGenerationOptions((current) => ({ ...current, ...defaults }));
+                }}
+                quoteLanguage={quoteLanguage}
+                onQuoteLanguageChange={(language) => { setQuoteLanguage(language); setGenerationOptions((current) => ({ ...current, language })); }}
+                showQuoteOptions={hasQuoteOutput}
+                options={generationOptions}
+                onOptionsChange={setGenerationOptions}
             />
 
             <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
@@ -316,6 +348,9 @@ export default function AIStudio() {
 
             <PreviewPanel
                 data={generatedContent}
+                username={overlayUsername}
+                logo={overlayLogo}
+                projectId={selectedProjectId}
             />
 
         </div>

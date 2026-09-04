@@ -36,6 +36,7 @@ class Schedule(Base):
         nullable=False,
         index=True,
     )
+    content_id = Column(Integer, ForeignKey("contents.id", ondelete="CASCADE"), nullable=True, index=True)
 
     platform = Column(
         String(50),

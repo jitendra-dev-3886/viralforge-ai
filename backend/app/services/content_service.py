@@ -1,6 +1,8 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.content import Content
+from app.models.scene import Scene
 from app.schemas.content import (
     ContentCreate,
     ContentUpdate,
@@ -8,6 +10,37 @@ from app.schemas.content import (
 
 
 class ContentService:
+
+    @staticmethod
+    def _serialize(content: Content):
+        config = content.generation_config or {}
+        return {
+            "id": content.id, "content_id": content.id,
+            "user_id": content.user_id, "project_id": content.project_id,
+            "project_title": content.project.title if content.project else "",
+            "title": content.title, "hook": content.hook,
+            "description": config.get("description", ""),
+            "prompt": content.prompt, "script": content.script,
+            "caption": content.caption,
+            "hashtags": content.hashtags.split(",") if content.hashtags else [],
+            "keywords": content.keywords.split(",") if content.keywords else [],
+            "cta": content.cta, "platform": content.platform,
+            "content_type": content.content_type, "language": content.language,
+            "ai_provider": content.ai_provider, "ai_model": content.ai_model,
+            "status": content.status, "generation_config": config,
+            "branding": config.get("branding", {}),
+            "story": config.get("story") or (content.script if "carousel" in (content.content_type or "").lower() else ""),
+            "created_at": content.created_at, "updated_at": content.updated_at,
+            "scenes": [{
+                "id": scene.id, "scene": scene.scene_number, "title": scene.title,
+                "text": scene.text, "keyword": scene.keyword,
+                "image_prompt": scene.image_prompt, "video_prompt": scene.video_prompt,
+                "media_type": scene.media_type, "duration": scene.duration,
+                "status": scene.status, "media_id": scene.media_id,
+                "media_url": scene.media.file_url if scene.media else None,
+                "media_provider": scene.media.provider if scene.media else None,
+            } for scene in sorted(content.scenes, key=lambda item: item.scene_number)],
+        }
 
     # =====================================================
     # Create Content
@@ -76,24 +109,33 @@ class ContentService:
     def get_all(
         db: Session,
         user_id: int,
+        project_id: int | None = None,
+        platform: str | None = None,
+        content_type: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
     ):
-
-        contents = (
-
-            db.query(Content)
-
-            .filter(Content.user_id == user_id)
-
-            .order_by(Content.created_at.desc())
-
-            .all()
-
-        )
+        query = db.query(Content).options(
+            selectinload(Content.scenes).selectinload(Scene.media),
+            selectinload(Content.project),
+        ).filter(Content.user_id == user_id)
+        if project_id is not None:
+            query = query.filter(Content.project_id == project_id)
+        if platform:
+            query = query.filter(Content.platform.ilike(f"%{platform}%"))
+        if content_type:
+            query = query.filter(Content.content_type.ilike(f"%{content_type}%"))
+        if status:
+            query = query.filter(Content.status == status)
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(or_(Content.title.ilike(term), Content.caption.ilike(term)))
+        contents = query.order_by(Content.created_at.desc()).all()
 
         return {
             "success": True,
             "total": len(contents),
-            "contents": contents,
+            "contents": [ContentService._serialize(content) for content in contents],
         }
 
     # =====================================================
@@ -109,7 +151,10 @@ class ContentService:
 
         content = (
 
-            db.query(Content)
+            db.query(Content).options(
+                selectinload(Content.scenes).selectinload(Scene.media),
+                selectinload(Content.project),
+            )
 
             .filter(
 
@@ -132,7 +177,7 @@ class ContentService:
 
         return {
             "success": True,
-            "content": content,
+            "content": ContentService._serialize(content),
         }
 
     # =====================================================
@@ -148,7 +193,10 @@ class ContentService:
 
         contents = (
 
-            db.query(Content)
+            db.query(Content).options(
+                selectinload(Content.scenes).selectinload(Scene.media),
+                selectinload(Content.project),
+            )
 
             .filter(
 
@@ -167,7 +215,7 @@ class ContentService:
         return {
             "success": True,
             "total": len(contents),
-            "contents": contents,
+            "contents": [ContentService._serialize(content) for content in contents],
         }
 
     # =====================================================

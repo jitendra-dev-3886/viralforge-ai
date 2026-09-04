@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -73,6 +73,8 @@ class ContentUpdate(BaseModel):
 
     status: Optional[str] = None
 
+    generation_config: Optional[dict[str, Any]] = None
+
 
 # ==========================================================
 # Content Response
@@ -115,6 +117,8 @@ class ContentResponse(BaseModel):
     prompt: Optional[str]
 
     status: str
+
+    generation_config: Optional[dict[str, Any]] = None
 
     created_at: datetime
 

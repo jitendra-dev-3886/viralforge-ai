@@ -1,22 +1,27 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useBrand } from "../../context/BrandContext";
-import { getBrand } from "../../api/brand";
+import { getBrand, uploadBrandLogo } from "../../api/brand";
+import { assetUrl } from "../../api/axios";
+import { useNiches } from "../../context/NicheContext";
 
 export default function EditBrand() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { editBrand } = useBrand();
+    const { niches } = useNiches();
     
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
     const [error, setError] = useState(null);
+    const [logoFile, setLogoFile] = useState(null);
 
     const [formData, setFormData] = useState({
         name: "",
         description: "",
         niche: "",
         website: "",
+        logo: "",
         primary_color: "#2563EB",
         secondary_color: "#1E293B",
         font: "Inter",
@@ -33,6 +38,7 @@ export default function EditBrand() {
                         description: data.brand.description || "",
                         niche: data.brand.niche || "",
                         website: data.brand.website || "",
+                        logo: data.brand.logo || "",
                         primary_color: data.brand.primary_color || "#2563EB",
                         secondary_color: data.brand.secondary_color || "#1E293B",
                         font: data.brand.font || "Inter",
@@ -66,6 +72,13 @@ export default function EditBrand() {
 
         try {
             const payload = { ...formData };
+            if (logoFile) {
+                if (logoFile.size > 5 * 1024 * 1024) {
+                    throw new Error("Logo image must be 5 MB or smaller.");
+                }
+                const upload = await uploadBrandLogo(logoFile);
+                payload.logo = upload.logo_url;
+            }
             
             // Clean up empty website strings to avoid FastAPI 422 URL validation errors
             if (!payload.website) {
@@ -84,7 +97,7 @@ export default function EditBrand() {
                 console.error("422 Validation Details:", err.response.data.detail);
                 setError("Validation Error: Please check your input fields (e.g., ensure website is a valid URL).");
             } else {
-                setError("An unexpected error occurred. Please try again.");
+                setError(err.response?.data?.detail || err.message || "An unexpected error occurred. Please try again.");
             }
         } finally {
             setLoading(false);
@@ -93,14 +106,14 @@ export default function EditBrand() {
 
     if (fetching) {
         return (
-            <div className="max-w-2xl mx-auto p-8 text-center text-gray-500">
+            <div className="mx-auto max-w-2xl p-4 text-center text-gray-500 sm:p-8">
                 Loading brand details...
             </div>
         );
     }
 
     return (
-        <div className="max-w-2xl mx-auto p-8">
+        <div className="mx-auto max-w-2xl p-1 sm:p-4 lg:p-8">
             <div className="flex items-center gap-4 mb-8">
                 <Link to="/brands" className="text-gray-500 hover:text-gray-800">
                     &larr; Back
@@ -132,18 +145,17 @@ export default function EditBrand() {
                 </div>
 
                 {/* Niche & Website */}
-                <div className="grid grid-cols-2 gap-5 mb-5">
+                <div className="mb-5 grid gap-5 sm:grid-cols-2">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Niche / Industry
                         </label>
-                        <input
-                            type="text"
+                        <select
                             name="niche"
                             value={formData.niche}
                             onChange={handleChange}
                             className="w-full p-3 border rounded-xl"
-                        />
+                        ><option value="">Select a niche</option>{formData.niche && !niches.some((niche) => niche.name === formData.niche) && <option value={formData.niche}>{formData.niche} (currently hidden)</option>}{niches.map((niche) => <option key={niche.id} value={niche.name}>{niche.icon} {niche.name}</option>)}</select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -157,6 +169,33 @@ export default function EditBrand() {
                             className="w-full p-3 border rounded-xl"
                         />
                     </div>
+                </div>
+
+                <div className="mb-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Logo URL
+                    </label>
+                    <input
+                        type="url"
+                        name="logo"
+                        value={formData.logo}
+                        onChange={handleChange}
+                        className="w-full p-3 border rounded-xl"
+                        placeholder="https://example.com/logo.png"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Use a public HTTPS image URL so it can be included in exported reels and carousel images.</p>
+                    {formData.logo && (
+                        <img src={assetUrl(formData.logo)} alt="Current brand logo" className="mt-3 h-20 w-20 rounded-xl border bg-white object-contain p-1" />
+                    )}
+                    <div className="my-3 flex items-center gap-3 text-xs text-gray-400"><span className="h-px flex-1 bg-gray-200" />OR<span className="h-px flex-1 bg-gray-200" /></div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Upload a new logo image</label>
+                    <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => setLogoFile(event.target.files?.[0] || null)}
+                        className="w-full rounded-xl border p-3 text-sm"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">PNG, JPG, or WebP, maximum 5 MB. The new image replaces the current logo.</p>
                 </div>
 
                 {/* Description */}
@@ -174,7 +213,7 @@ export default function EditBrand() {
                 </div>
 
                 {/* Colors & Typography */}
-                <div className="grid grid-cols-3 gap-5 mb-8 pt-5 border-t">
+                <div className="mb-8 grid gap-5 border-t pt-5 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Primary Color

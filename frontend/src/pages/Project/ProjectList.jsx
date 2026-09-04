@@ -16,7 +16,7 @@ export default function ProjectList() {
     };
 
     return (
-        <div className="p-8">
+        <div className="p-1 sm:p-4 lg:p-8">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">Projects</h1>

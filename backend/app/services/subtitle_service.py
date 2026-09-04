@@ -15,6 +15,7 @@ class SubtitleService:
     def generate(
         db: Session,
         scene_id: int,
+        user_id: int,
     ):
 
         # ===========================================
@@ -23,7 +24,7 @@ class SubtitleService:
 
         scene = (
             db.query(Scene)
-            .filter(Scene.id == scene_id)
+            .filter(Scene.id == scene_id, Scene.user_id == user_id)
             .first()
         )
 
@@ -50,7 +51,7 @@ class SubtitleService:
             exist_ok=True,
         )
 
-        filename = f"scene_{scene.scene_number}.srt"
+        filename = f"content_{scene.content_id}_scene_{scene.scene_number}.srt"
 
         output_path = os.path.join(
             subtitle_folder,
@@ -88,6 +89,7 @@ class SubtitleService:
         if media:
 
             media.file_path = output_path
+            media.file_url = f"/storage/projects/{scene.project_id}/subtitles/{filename}"
 
             media.status = "ready"
 
@@ -109,7 +111,7 @@ class SubtitleService:
 
                 file_path=output_path,
 
-                file_url="",
+                file_url=f"/storage/projects/{scene.project_id}/subtitles/{filename}",
 
                 mime_type="text/plain",
 
@@ -146,6 +148,8 @@ class SubtitleService:
             "file_name": filename,
 
             "file_path": output_path,
+
+            "file_url": media.file_url,
 
             "status": media.status,
 

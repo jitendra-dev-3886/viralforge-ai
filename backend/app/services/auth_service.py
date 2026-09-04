@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from secrets import token_urlsafe
+import os
 
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,7 @@ class AuthService:
             name=request.name,
             email=request.email,
             hashed_password=hash_password(request.password),
+            is_super_admin=request.email.lower() == os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower(),
         )
 
         db.add(user)
@@ -57,6 +59,7 @@ class AuthService:
                 "email": user.email,
                 "is_active": user.is_active,
                 "is_verified": user.is_verified,
+                "is_super_admin": user.is_super_admin,
             }
         }
 
@@ -79,7 +82,13 @@ class AuthService:
                 "message": "Invalid email or password."
             }
 
-        if not verify_password(
+        configured_admin = os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower()
+        if configured_admin and user.email.lower() == configured_admin and not user.is_super_admin:
+            user.is_super_admin = True
+            db.commit()
+            db.refresh(user)
+
+        if not user.hashed_password or not user.hashed_password.startswith("$2") or not verify_password(
             request.password,
             user.hashed_password,
         ):
@@ -112,6 +121,7 @@ class AuthService:
                 "email": user.email,
                 "is_active": user.is_active,
                 "is_verified": user.is_verified,
+                "is_super_admin": user.is_super_admin,
             }
         }
 
@@ -202,3 +212,14 @@ class AuthService:
             "success": True,
             "message": "Password reset successful."
         }
+
+    @staticmethod
+    def set_password(db: Session, user_id: int, password: str):
+        if len(password) < 8:
+            return {"success": False, "message": "Password must be at least 8 characters."}
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"success": False, "message": "User not found."}
+        user.hashed_password = hash_password(password)
+        db.commit()
+        return {"success": True, "message": "Password updated successfully."}

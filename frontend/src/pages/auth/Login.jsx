@@ -1,300 +1,40 @@
-import { useState, useContext } from "react";
+import { useContext, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
-
+import { AlertCircle, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import api from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
+import AuthLayout from "../../layouts/AuthLayout";
+import SocialLogin from "../../components/auth/SocialLogin";
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
-
   const [showPassword, setShowPassword] = useState(false);
-
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState("");
-
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    setLoading(true);
-    setError("");
-
+  const handleSubmit = async (event) => {
+    event.preventDefault(); setLoading(true); setError("");
     try {
-      const response = await api.post("/auth/login", {
-        email,
-        password,
-      });
-
-      if (response.data.success) {
-        login(response.data.user, response.data.token);
-
-        navigate("/dashboard");
-      }
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Invalid email or password."
-      );
-    } finally {
-      setLoading(false);
-    }
+      const response = await api.post("/auth/login", { email, password });
+      if (response.data.success) { login(response.data.user, response.data.token); navigate("/dashboard"); }
+      else setError(response.data.message || "We couldn't sign you in. Please check your details.");
+    } catch (err) { setError(err.response?.data?.detail || err.response?.data?.message || "Invalid email or password."); }
+    finally { setLoading(false); }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex">
-
-      {/* LEFT PANEL */}
-
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white p-14 flex-col justify-between">
-
-        <div>
-
-          <div className="flex items-center gap-3">
-
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-
-              <Sparkles size={26} />
-
-            </div>
-
-            <div>
-
-              <h1 className="text-3xl font-bold">
-                ViralForge AI
-              </h1>
-
-              <p className="text-blue-200 text-sm">
-                AI Content Automation Platform
-              </p>
-
-            </div>
-
-          </div>
-
-          <h2 className="mt-16 text-5xl font-bold leading-tight">
-            Create Once.
-            <br />
-            Publish Everywhere.
-          </h2>
-
-          <p className="mt-8 text-lg text-blue-100 leading-8">
-            Generate AI posts, reels, blogs,
-            captions and automatically publish
-            to Instagram, Facebook, YouTube,
-            LinkedIn and X.
-          </p>
-
-        </div>
-
-        <div className="grid grid-cols-2 gap-5">
-
-          <div className="bg-white/10 rounded-xl p-5">
-            <h3 className="text-3xl font-bold">
-              100+
-            </h3>
-            <p>AI Templates</p>
-          </div>
-
-          <div className="bg-white/10 rounded-xl p-5">
-            <h3 className="text-3xl font-bold">
-              10+
-            </h3>
-            <p>Platforms</p>
-          </div>
-
-          <div className="bg-white/10 rounded-xl p-5">
-            <h3 className="text-3xl font-bold">
-              Auto
-            </h3>
-            <p>Publishing</p>
-          </div>
-
-          <div className="bg-white/10 rounded-xl p-5">
-            <h3 className="text-3xl font-bold">
-              AI
-            </h3>
-            <p>Content Engine</p>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* RIGHT PANEL */}
-
-      <div className="flex-1 flex items-center justify-center bg-slate-100 px-6">
-
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-10">
-
-          <div className="text-center">
-
-            <h2 className="text-4xl font-bold text-slate-900">
-              Welcome Back
-            </h2>
-
-            <p className="text-slate-500 mt-3">
-              Login to continue
-            </p>
-
-          </div>
-
-          {error && (
-            <div className="mt-6 bg-red-100 text-red-600 rounded-lg p-3 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSubmit}
-            className="mt-8 space-y-6"
-          >
-
-            <div>
-
-              <label className="text-sm font-semibold text-slate-700">
-                Email
-              </label>
-
-              <div className="relative mt-2">
-
-                <Mail
-                  size={18}
-                  className="absolute left-4 top-4 text-gray-400"
-                />
-
-                <input
-                  type="email"
-                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  required
-                />
-
-              </div>
-
-            </div>
-
-            <div>
-
-              <label className="text-sm font-semibold text-slate-700">
-                Password
-              </label>
-
-              <div className="relative mt-2">
-
-                <Lock
-                  size={18}
-                  className="absolute left-4 top-4 text-gray-400"
-                />
-
-                <input
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
-                  className="w-full pl-12 pr-12 py-3 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none"
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
-                  required
-                />
-
-                <button
-                  type="button"
-                  className="absolute right-4 top-3"
-                  onClick={() =>
-                    setShowPassword(
-                      !showPassword
-                    )
-                  }
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} />
-                  ) : (
-                    <Eye size={20} />
-                  )}
-                </button>
-
-              </div>
-
-            </div>
-
-            <div className="flex justify-between text-sm">
-
-              <label className="flex items-center gap-2">
-
-                <input type="checkbox" />
-
-                Remember me
-
-              </label>
-
-              <Link
-                to="/forgot-password"
-                className="text-blue-600 hover:underline"
-              >
-                Forgot Password?
-              </Link>
-
-            </div>
-
-            <button
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex justify-center items-center gap-2 transition"
-            >
-              {loading ? (
-                <>
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                  />
-                  Logging in...
-                </>
-              ) : (
-                "Login to ViralForge AI"
-              )}
-            </button>
-
-            <p className="text-center text-slate-600">
-
-              Don't have an account?
-
-              <Link
-                to="/register"
-                className="ml-2 text-blue-600 font-semibold hover:underline"
-              >
-                Register
-              </Link>
-
-            </p>
-
-          </form>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
+  return <AuthLayout mode="login"><div className="auth-card">
+    <p className="auth-card__eyebrow">Welcome back</p><h2>Continue creating.</h2>
+    <p className="auth-card__intro">Sign in to access your projects, campaigns, and AI workspace.</p>
+    {error && <div className="auth-alert auth-alert--error" role="alert"><AlertCircle size={17}/><span>{error}</span></div>}
+    <form className="auth-form" onSubmit={handleSubmit}>
+      <label className="auth-field"><span className="auth-field__label">Work email</span><span className="auth-field__control"><Mail size={17}/><input type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(e)=>setEmail(e.target.value)} disabled={loading} required autoFocus/></span></label>
+      <label className="auth-field"><span className="auth-field__label"><span>Password</span><Link className="auth-link" to="/forgot-password">Forgot password?</Link></span><span className="auth-field__control"><Lock size={17}/><input type={showPassword?"text":"password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(e)=>setPassword(e.target.value)} disabled={loading} required/><button className="auth-icon-button" type="button" onClick={()=>setShowPassword((value)=>!value)} aria-label={showPassword?"Hide password":"Show password"} title={showPassword?"Hide password":"Show password"}>{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></span></label>
+      <button className="auth-submit" type="submit" disabled={loading}>{loading?<><Loader2 className="animate-spin" size={17}/> Signing in...</>:"Sign in to ViralForge"}</button>
+    </form><SocialLogin />
+    <p className="auth-switch">New to ViralForge? <Link to="/register">Start creating free</Link></p>
+    <p className="auth-security"><ShieldCheck size={14}/> Your data is encrypted and securely stored.</p>
+  </div></AuthLayout>;
 }

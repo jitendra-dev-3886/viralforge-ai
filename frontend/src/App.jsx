@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Home from "./pages/home/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import OAuthCallback from "./pages/auth/OAuthCallback";
+import SetPassword from "./pages/auth/SetPassword";
 
 import Dashboard from "./pages/dashboard/Dashboard";
 
@@ -32,6 +34,16 @@ import AppShell from "./layouts/AppShell";
 
 import { BrandProvider } from "./context/BrandContext";
 import { ProjectProvider } from "./context/ProjectContext";
+import { NicheProvider } from "./context/NicheContext";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import ContentEditor from "./pages/content/ContentEditor";
+import { useContext } from "react";
+import { AuthContext } from "./context/AuthContext";
+
+function AdminRoute() {
+    const { user } = useContext(AuthContext);
+    return user?.is_super_admin ? <AdminDashboard /> : <Navigate to="/dashboard" replace />;
+}
 
 function App() {
 
@@ -39,6 +51,7 @@ function App() {
 
         <ProjectProvider>
             <BrandProvider>
+              <NicheProvider>
 
                 <BrowserRouter>
 
@@ -63,6 +76,9 @@ function App() {
                         path="/forgot-password"
                         element={<ForgotPassword />}
                     />
+
+                    <Route path="/auth/callback" element={<OAuthCallback />} />
+                    <Route path="/set-password" element={<SetPassword />} />
 
                     <Route element={<AppShell />}>
 
@@ -135,6 +151,7 @@ function App() {
                         path="/history"
                         element={<HistoryPage />}
                     />
+                    <Route path="/content/:id/edit" element={<ContentEditor />} />
 
                     <Route
                         path="/analytics"
@@ -150,6 +167,7 @@ function App() {
                         path="/settings"
                         element={<SettingsPage />}
                     />
+                    <Route path="/admin" element={<AdminRoute />} />
 
                     <Route
                         path="/scheduler"
@@ -186,6 +204,7 @@ function App() {
 
             </BrowserRouter>
 
+              </NicheProvider>
             </BrandProvider>
         </ProjectProvider>
 

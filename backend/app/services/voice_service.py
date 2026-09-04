@@ -20,7 +20,22 @@ from app.schemas.voice import (
 
 class VoiceService:
 
-    BASE_DIR = Path("storage/projects")
+    BASE_DIR = Path(__file__).resolve().parents[2] / "storage" / "projects"
+    HINDI_VOICES = {"hi-IN-SwaraNeural", "hi-IN-MadhurNeural"}
+    ENGLISH_VOICES = {
+        "en-US-AriaNeural", "en-US-JennyNeural", "en-US-GuyNeural",
+        "en-US-DavisNeural", "en-GB-SoniaNeural", "en-GB-RyanNeural",
+    }
+
+    @staticmethod
+    def _voice_for(text: str, language: str, requested_voice: str) -> tuple[str, str]:
+        contains_hindi = any("\u0900" <= char <= "\u097f" for char in text)
+        is_hindi = contains_hindi or str(language or "").lower().startswith(("hi", "hindi"))
+        allowed = VoiceService.HINDI_VOICES if is_hindi else VoiceService.ENGLISH_VOICES
+        selected = requested_voice if requested_voice in allowed else (
+            "hi-IN-SwaraNeural" if is_hindi else "en-US-AriaNeural"
+        )
+        return selected, "Hindi" if is_hindi else "English"
 
     # ==========================================================
     # Generate Voice
@@ -118,9 +133,16 @@ class VoiceService:
             # Generate Audio
             # ==================================================
 
+            selected_voice, selected_language = VoiceService._voice_for(
+                request.text, request.language, request.voice
+            )
+
+            selected_voice, selected_language = VoiceService._voice_for(
+                voice.text, voice.language, voice.voice
+            )
             communicate = edge_tts.Communicate(
                 text=request.text,
-                voice=request.voice,
+                voice=selected_voice,
                 rate=request.speed,
                 pitch=request.pitch,
             )
@@ -164,11 +186,11 @@ class VoiceService:
 
                 provider=request.provider,
 
-                voice=request.voice,
+                voice=selected_voice,
 
                 gender=request.gender,
 
-                language=request.language,
+                language=selected_language,
 
                 speed=request.speed,
 
@@ -180,7 +202,7 @@ class VoiceService:
 
                 audio_path=str(audio_path),
 
-                audio_url=None,
+                audio_url=f"/storage/projects/{request.project_id}/audio/{filename}",
 
                 duration=0,
 
@@ -215,7 +237,7 @@ class VoiceService:
 
                 file_path=str(audio_path),
 
-                file_url="",
+                file_url=f"/storage/projects/{request.project_id}/audio/{filename}",
 
                 mime_type="audio/mpeg",
 
@@ -711,7 +733,7 @@ class VoiceService:
 
                 text=voice.text,
 
-                voice=voice.voice,
+                voice=selected_voice,
 
                 rate=voice.speed,
 
@@ -722,6 +744,9 @@ class VoiceService:
             await communicate.save(
                 str(audio_path)
             )
+
+            voice.voice = selected_voice
+            voice.language = selected_language
 
             if not audio_path.exists():
 
@@ -741,6 +766,8 @@ class VoiceService:
             voice.audio_path = str(
                 audio_path
             )
+
+            voice.audio_url = f"/storage/projects/{voice.project_id}/audio/{filename}"
 
             voice.file_size = file_size
 
@@ -805,7 +832,7 @@ class VoiceService:
 
                     file_path=str(audio_path),
 
-                    file_url="",
+                    file_url=f"/storage/projects/{voice.project_id}/audio/{filename}",
 
                     mime_type="audio/mpeg",
 
@@ -832,6 +859,8 @@ class VoiceService:
                 media.file_path = str(
                     audio_path
                 )
+
+                media.file_url = f"/storage/projects/{voice.project_id}/audio/{filename}"
 
                 media.file_size = file_size
 

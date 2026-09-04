@@ -7,6 +7,7 @@ import edge_tts
 class EdgeTTSClient:
 
     DEFAULT_VOICE = "en-US-AriaNeural"
+    DEFAULT_HINDI_VOICE = "hi-IN-SwaraNeural"
 
     @classmethod
     async def _generate(
@@ -21,9 +22,13 @@ class EdgeTTSClient:
             exist_ok=True,
         )
 
+        selected_voice = voice
+        if not selected_voice:
+            selected_voice = cls.DEFAULT_HINDI_VOICE if any("\u0900" <= char <= "\u097f" for char in text) else cls.DEFAULT_VOICE
+
         communicate = edge_tts.Communicate(
             text=text,
-            voice=voice or cls.DEFAULT_VOICE,
+            voice=selected_voice,
         )
 
         await communicate.save(output_file)

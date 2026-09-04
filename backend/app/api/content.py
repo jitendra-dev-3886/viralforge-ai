@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -42,10 +42,20 @@ def create_content(
 def get_all_contents(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
+    project_id: int | None = Query(default=None),
+    platform: str | None = Query(default=None),
+    content_type: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    search: str | None = Query(default=None),
 ):
     return ContentService.get_all(
         db=db,
         user_id=user_id,
+        project_id=project_id,
+        platform=platform,
+        content_type=content_type,
+        status=status,
+        search=search,
     )
 
 
@@ -53,7 +63,7 @@ def get_all_contents(
 # Get Single Content
 # ==========================================================
 
-@router.get("/{content_id}")
+@router.get("/{content_id:int}")
 def get_content(
     content_id: int,
     db: Session = Depends(get_db),
@@ -87,7 +97,7 @@ def get_project_contents(
 # Update Content
 # ==========================================================
 
-@router.put("/{content_id}")
+@router.put("/{content_id:int}")
 def update_content(
     content_id: int,
     request: ContentUpdate,
@@ -106,7 +116,7 @@ def update_content(
 # Delete Content
 # ==========================================================
 
-@router.delete("/{content_id}")
+@router.delete("/{content_id:int}")
 def delete_content(
     content_id: int,
     db: Session = Depends(get_db),

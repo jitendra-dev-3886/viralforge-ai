@@ -1,12 +1,33 @@
 import os
+import re
+import textwrap
+import hashlib
+from pathlib import Path
+import requests
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.scene import Scene
 from app.models.media import Media
+from app.models.voice import Voice
 
 from app.core.ffmpeg_client import FFmpegClient
 from app.core.subtitle_burner import SubtitleBurner
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+def _stored_path(value: str | None) -> Path | None:
+    """Resolve old cwd-relative database paths against the backend directory."""
+    if not value:
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    cwd_path = path.resolve()
+    backend_path = (BACKEND_DIR / path).resolve()
+    return cwd_path if cwd_path.exists() else backend_path
 
 
 class RenderService:
@@ -15,6 +36,7 @@ class RenderService:
     def generate(
         db: Session,
         scene_id: int,
+        user_id: int,
     ):
 
         # =====================================================
@@ -23,7 +45,7 @@ class RenderService:
 
         scene = (
             db.query(Scene)
-            .filter(Scene.id == scene_id)
+            .filter(Scene.id == scene_id, Scene.user_id == user_id)
             .first()
         )
 
@@ -34,10 +56,11 @@ class RenderService:
             )
 
         # =====================================================
-        # Get Video (or Image saved as Video)
+        # Get the scene source. Carousel scenes use images; reel/video scenes
+        # use clips. Both are normalized to MP4 only for the combined render.
         # =====================================================
 
-        video = (
+        source_media = (
             db.query(Media)
             .filter(
                 Media.id == scene.media_id,
@@ -47,71 +70,139 @@ class RenderService:
             .first()
         )
 
-        if not video:
+        if not source_media:
             raise HTTPException(
                 status_code=404,
-                detail="Video not found."
+                detail="Scene image or video media was not found. Regenerate the missing scene media and try again."
             )
 
         # =====================================================
         # Get Audio
         # =====================================================
 
-        audio = (
-            db.query(Media)
+        voice = (
+            db.query(Voice)
             .filter(
-                Media.project_id == scene.project_id,
-                Media.media_type == "audio",
-                Media.title == f"Scene {scene.scene_number} Voice"
+                Voice.scene_id == scene.id,
+                Voice.status == "generated",
             )
+            .order_by(Voice.created_at.desc())
             .first()
         )
-
-        if not audio:
-            raise HTTPException(
-                status_code=404,
-                detail="Audio not found."
-            )
 
         # =====================================================
         # Output Folder
         # =====================================================
 
-        render_folder = os.path.join(
-            "storage",
-            "projects",
-            str(scene.project_id),
-            "render",
-        )
+        render_folder = BACKEND_DIR / "storage" / "projects" / str(scene.project_id) / "render"
 
         os.makedirs(
             render_folder,
             exist_ok=True,
         )
 
-        filename = f"scene_{scene.scene_number}_final.mp4"
+        filename = f"content_{scene.content_id}_scene_{scene.scene_number}_final.mp4"
 
-        output_path = os.path.join(
-            render_folder,
-            filename,
-        )
+        output_path = render_folder / filename
 
         # =====================================================
         # Convert to Absolute Paths for FFmpeg
         # =====================================================
         
-        abs_video_path = os.path.abspath(video.file_path)
-        abs_audio_path = os.path.abspath(audio.file_path)
-        abs_output_path = os.path.abspath(output_path)
+        source_path = _stored_path(source_media.file_path)
+        abs_video_path = str(source_path) if source_path else ""
+        if not source_path or not source_path.exists():
+            raise HTTPException(status_code=404, detail="The saved scene media file is missing from storage.")
+        voice_path = _stored_path(voice.audio_path) if voice else None
+        if not voice_path or not voice_path.exists():
+            legacy_audio = (
+                db.query(Media)
+                .filter(
+                    Media.project_id == scene.project_id,
+                    Media.user_id == user_id,
+                    Media.media_type == "audio",
+                    Media.title == f"Scene {scene.scene_number} Voice",
+                )
+                .order_by(Media.created_at.desc())
+                .first()
+            )
+            voice_path = _stored_path(legacy_audio.file_path) if legacy_audio else None
+        abs_audio_path = str(voice_path) if voice_path and voice_path.exists() else None
+        abs_output_path = str(output_path.resolve())
+
+        platform = (scene.content.platform or "").lower()
+        content_type = (scene.content.content_type or "").lower()
+        if "reel" in content_type or "short" in content_type or "story" in content_type:
+            output_width, output_height = 1080, 1920
+        elif "carousel" in content_type and "instagram" in platform:
+            output_width, output_height = 1080, 1350
+        elif "carousel" in content_type:
+            output_width, output_height = 1080, 1080
+        elif "youtube" in platform and ("video" in content_type):
+            output_width, output_height = 1920, 1080
+        elif "instagram" in platform:
+            output_width, output_height = 1080, 1350
+        else:
+            output_width, output_height = 1080, 1080
+
+        generation_config = scene.content.generation_config or {}
+        branding = generation_config.get("branding", {})
+        overlay_layout = generation_config.get("overlay_layout", {})
+        text_position = overlay_layout.get("text", {})
+        logo_position = overlay_layout.get("logo", {})
+        username_position = overlay_layout.get("username", {})
+        username = branding.get("username") or branding.get("brand_name") or ""
+        raw_overlay_text = str(scene.text or "").strip()
+        explicit_lines = [re.sub(r"[ \t]+", " ", line).strip() for line in raw_overlay_text.splitlines() if line.strip()]
+        if len(explicit_lines) > 1:
+            overlay_text = "\n".join(explicit_lines[:5])
+        else:
+            overlay_text = "\n".join(textwrap.wrap(re.sub(r"\s+", " ", raw_overlay_text), width=28)[:5])
+        logo_path = None
+        logo_url = branding.get("logo")
+        if logo_url:
+            try:
+                logo_folder = Path(render_folder) / "branding"
+                logo_folder.mkdir(parents=True, exist_ok=True)
+                logo_key = hashlib.sha256(str(logo_url).encode("utf-8")).hexdigest()[:12]
+                candidate = logo_folder / f"content_{scene.content_id}_{logo_key}.logo"
+                local_logo = None
+                if str(logo_url).startswith("/storage/"):
+                    local_logo = BACKEND_DIR / str(logo_url).lstrip("/")
+                elif not str(logo_url).lower().startswith(("http://", "https://")):
+                    local_logo = _stored_path(str(logo_url))
+                if local_logo and local_logo.exists():
+                    logo_path = str(local_logo.resolve())
+                else:
+                    if not candidate.exists():
+                        response = requests.get(str(logo_url), timeout=15)
+                        response.raise_for_status()
+                        candidate.write_bytes(response.content)
+                    logo_path = str(candidate.resolve())
+            except Exception:
+                logo_path = None
 
         # =====================================================
         # Render
         # =====================================================
 
-        FFmpegClient.merge_video_audio(
+        FFmpegClient.render_media(
             video_path=abs_video_path,
             audio_path=abs_audio_path,
             output_path=abs_output_path,
+            duration=scene.duration or 5,
+            width=output_width,
+            height=output_height,
+            overlay_text=overlay_text,
+            username=username,
+            logo_path=logo_path,
+            text_x_pct=text_position.get("x", 50),
+            text_y_pct=text_position.get("y", 68),
+            logo_x_pct=logo_position.get("x", 10),
+            logo_y_pct=logo_position.get("y", 8),
+            username_x_pct=username_position.get("x", 82),
+            username_y_pct=username_position.get("y", 92),
+            transition=scene.transition or "fade",
         )
 
         # =====================================================
@@ -123,15 +214,15 @@ class RenderService:
             project_id=scene.project_id,
             media_type="render",
             provider="FFmpeg",
-            title=f"Scene {scene.scene_number} Final",
+            title=f"Content {scene.content_id} Scene {scene.scene_number} Branded Final",
             file_name=filename,
-            file_path=output_path,  # Keep relative path for DB
-            file_url="",
+            file_path=str(output_path),
+            file_url=f"/storage/projects/{scene.project_id}/render/{filename}",
             mime_type="video/mp4",
             extension=".mp4",
             duration=scene.duration,
-            width=video.width,
-            height=video.height,
+            width=output_width,
+            height=output_height,
             file_size=os.path.getsize(abs_output_path),
             status="ready",
         )

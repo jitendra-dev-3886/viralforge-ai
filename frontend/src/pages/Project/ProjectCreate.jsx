@@ -60,7 +60,7 @@ export default function ProjectCreate() {
     };
 
     return (
-        <div className="max-w-3xl mx-auto p-8">
+        <div className="mx-auto max-w-3xl p-1 sm:p-4 lg:p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">Create Project</h1>
@@ -77,7 +77,7 @@ export default function ProjectCreate() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border bg-white p-8 shadow-sm">
+            <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border bg-white p-4 shadow-sm sm:p-8">
                 <div className="grid gap-6 md:grid-cols-2">
                     <label className="space-y-2 text-sm font-medium text-slate-700">
                         Project Title *

@@ -37,7 +37,7 @@ class User(Base):
     # Store only hashed password
     hashed_password = Column(
         String(255),
-        nullable=False,
+        nullable=True,
     )
 
     is_active = Column(
@@ -51,6 +51,8 @@ class User(Base):
         default=False,
         server_default="0",
     )
+
+    is_super_admin = Column(Boolean, default=False, server_default="0", nullable=False)
 
     reset_token = Column(
         String(255),
@@ -165,4 +167,11 @@ class User(Base):
     voices = relationship(
         "Voice",
         back_populates="user",
+    )
+
+    social_accounts = relationship(
+        "SocialAccount",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )

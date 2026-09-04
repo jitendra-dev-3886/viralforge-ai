@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.database import Base, engine
 
@@ -16,6 +18,10 @@ from app.api.voice import router as voice_router
 from app.api.render import router as render_router
 from app.api.subtitle import router as subtitle_router
 from app.api.project_render import router as project_render_router
+from app.api.analytics import router as analytics_router
+from app.api.niche import router as niche_router
+from app.api.admin import router as admin_router
+from app.api.schedule import router as schedule_router
 
 
 from app import models
@@ -37,6 +43,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
+storage_dir = Path(__file__).resolve().parent.parent / "storage"
+storage_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=str(storage_dir)), name="storage")
+
 
 # ==========================================================
 # CORS
@@ -47,6 +57,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -83,6 +95,10 @@ app.include_router(render_router)
 
 app.include_router(subtitle_router)
 app.include_router(project_render_router)
+app.include_router(analytics_router)
+app.include_router(niche_router)
+app.include_router(admin_router)
+app.include_router(schedule_router)
 
 
 # ==========================================================

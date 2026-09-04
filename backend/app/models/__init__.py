@@ -11,6 +11,8 @@ from .api_setting import ApiSetting
 from .scene import Scene
 from .voice import Voice
 from .image import Image
+from .social_account import SocialAccount
+from .niche import Niche
 
 __all__ = [
     "User",
@@ -26,6 +28,8 @@ __all__ = [
     "Scene",
     "Voice",
     "Image",
+    "SocialAccount",
+    "Niche",
 
     
 ]

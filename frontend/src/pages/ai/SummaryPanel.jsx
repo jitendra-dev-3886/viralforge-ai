@@ -8,7 +8,7 @@ export default function SummaryPanel({
 
     return (
 
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl shadow-xl p-8 mt-8 text-white">
+        <div className="mt-8 rounded-3xl bg-gradient-to-r from-indigo-600 to-purple-600 p-5 text-white shadow-xl sm:p-8">
 
             <h2 className="text-2xl font-bold">
                 🚀 Generation Summary

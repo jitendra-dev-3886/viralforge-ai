@@ -32,9 +32,7 @@ class GroqClient:
         # Later, simply change GROQ_MODELS in .env.
         self.models = self._load_models()
 
-        self.max_tokens = int(
-            os.getenv("GROQ_MAX_TOKENS", "1200")
-        )
+        self.max_tokens = max(3000, int(os.getenv("GROQ_MAX_TOKENS", "3000")))
 
         self.temperature = float(
             os.getenv("GROQ_TEMPERATURE", "0.7")
@@ -47,20 +45,22 @@ class GroqClient:
     def _load_models(self):
         models = os.getenv(
             "GROQ_MODELS",
-            "llama-3.1-8b-instant"
+            "openai/gpt-oss-20b,qwen/qwen3.6-27b,groq/compound-mini"
         )
 
-        return [
+        configured = [
             model.strip()
             for model in models.split(",")
             if model.strip()
         ]
+        fallbacks = ["openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound-mini"]
+        return list(dict.fromkeys(configured + fallbacks))
 
     # -----------------------------------------------------
     # Generate
     # -----------------------------------------------------
 
-    def generate(self, prompt: str):
+    def generate(self, prompt: str, json_mode: bool = False):
 
         last_error = None
 
@@ -70,29 +70,43 @@ class GroqClient:
 
                 print(f"[Groq] Trying model: {model}")
 
-                response = self.client.chat.completions.create(
-
-                    model=model,
-
-                    messages=[
+                request = {
+                    "model": model,
+                    "messages": [
                         {
                             "role": "system",
-                            "content": "You are ViralForge AI."
+                            "content": (
+                                "You are ViralForge AI. Return valid JSON only."
+                                if json_mode else "You are ViralForge AI."
+                            )
                         },
                         {
                             "role": "user",
                             "content": prompt
                         }
                     ],
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens,
+                }
 
-                    temperature=self.temperature,
+                if json_mode:
+                    request["response_format"] = {"type": "json_object"}
 
-                    max_tokens=self.max_tokens,
-                )
+                try:
+                    response = self.client.chat.completions.create(**request)
+                except Exception:
+                    # Some otherwise usable Groq models do not expose JSON
+                    # mode. Fall back to their regular response and let the
+                    # service parser validate it before accepting the result.
+                    if not json_mode:
+                        raise
+                    request.pop("response_format", None)
+                    response = self.client.chat.completions.create(**request)
 
                 content = response.choices[0].message.content
 
                 if content:
+                    self.last_model = model
                     print(f"[Groq] Success: {model}")
                     return content
 

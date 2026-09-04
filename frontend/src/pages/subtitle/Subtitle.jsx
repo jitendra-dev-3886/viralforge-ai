@@ -1,8 +1,7 @@
-export default function SubtitlePage() {
-    return (
-        <div className="p-8">
-            <h1 className="text-3xl font-bold mb-4">Subtitle</h1>
-            <p className="text-slate-500">Manage subtitles and transcript exports for your videos.</p>
-        </div>
-    );
-}
+import { useEffect, useState } from "react";
+import { Captions, Download } from "lucide-react";
+import { useProject } from "../../context/ProjectContext";
+import { generateSceneSubtitle, getProjectScenes } from "../../api/scene";
+import { assetUrl } from "../../api/axios";
+
+export default function SubtitlePage(){const{projects}=useProject();const[projectId,setProjectId]=useState("");const[scenes,setScenes]=useState([]);const[results,setResults]=useState({});const[busy,setBusy]=useState(null);useEffect(()=>{if(!projectId&&projects[0])setProjectId(projects[0].id)},[projects,projectId]);useEffect(()=>{if(projectId)getProjectScenes(projectId).then(r=>setScenes(r.scenes||[]))},[projectId]);const generate=async scene=>{setBusy(scene.id);try{const r=await generateSceneSubtitle(scene.id);setResults(v=>({...v,[scene.id]:r}))}finally{setBusy(null)}};return <div className="p-1 sm:p-4 lg:p-8"><h1 className="text-3xl font-bold">Subtitles</h1><p className="mt-2 text-slate-500">Generate downloadable SRT captions per project scene.</p><select value={projectId} onChange={e=>setProjectId(Number(e.target.value))} className="mt-6 w-full max-w-xl rounded-xl border p-3"><option value="">Select project</option>{projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select><div className="mt-6 space-y-3">{scenes.map(scene=><article key={scene.id} className="rounded-2xl border bg-white p-5"><strong>Scene {scene.scene_number}</strong><p className="mt-2 text-sm text-slate-600">{scene.text}</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={()=>generate(scene)} disabled={busy===scene.id} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm text-white"><Captions size={16}/>{busy===scene.id?"Generating…":"Generate SRT"}</button>{results[scene.id]?.file_url&&<a href={assetUrl(results[scene.id].file_url)} download className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm"><Download size={16}/>Download SRT</a>}</div></article>)}</div></div>}

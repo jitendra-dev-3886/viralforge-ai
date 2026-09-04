@@ -46,7 +46,9 @@ def _safe_media_path(file_path: str) -> Path | None:
 def create_media(
     request: MediaCreate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
+    request.user_id = user_id
     return MediaService.create(
         db=db,
         request=request,
@@ -59,8 +61,8 @@ def create_media(
 
 @router.get("/")
 def get_all_media(
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return MediaService.get_all(
         db=db,
@@ -75,8 +77,8 @@ def get_all_media(
 @router.get("/{media_id}")
 def get_media(
     media_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return MediaService.get_by_id(
         db=db,
@@ -92,8 +94,8 @@ def get_media(
 @router.get("/project/{project_id}")
 def get_project_media(
     project_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return MediaService.get_project_media(
         db=db,
@@ -109,9 +111,9 @@ def get_project_media(
 @router.put("/{media_id}")
 def update_media(
     media_id: int,
-    user_id: int,
     request: MediaUpdate,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return MediaService.update(
         db=db,
@@ -128,8 +130,8 @@ def update_media(
 @router.delete("/{media_id}")
 def delete_media(
     media_id: int,
-    user_id: int,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     return MediaService.delete(
         db=db,

@@ -9,12 +9,22 @@ from app.models.scene import Scene
 from app.models.media import Media
 
 from app.services.render_service import RenderService
+from app.services.downloader_service import DownloaderService
 from app.core.ffmpeg_client import FFmpegClient
 
 
 class ProjectRenderService:
 
-    BASE_DIR = Path("storage/projects")
+    BASE_DIR = Path(__file__).resolve().parents[2] / "storage" / "projects"
+
+    @staticmethod
+    def _media_path(value: str) -> Path:
+        path = Path(value)
+        if path.is_absolute():
+            return path
+        cwd_path = path.resolve()
+        backend_path = (Path(__file__).resolve().parents[2] / path).resolve()
+        return cwd_path if cwd_path.exists() else backend_path
 
     # ==========================================================
     # Generate Final Project Video
@@ -24,6 +34,8 @@ class ProjectRenderService:
     def generate(
         db: Session,
         project_id: int,
+        user_id: int,
+        content_id: int | None = None,
     ):
 
         # ======================================================
@@ -34,6 +46,7 @@ class ProjectRenderService:
             db.query(Project)
             .filter(
                 Project.id == project_id,
+                Project.user_id == user_id,
             )
             .first()
         )
@@ -49,10 +62,19 @@ class ProjectRenderService:
         # Get Scenes
         # ======================================================
 
+        if content_id is None:
+            latest_scene = db.query(Scene).filter(
+                Scene.project_id == project_id,
+                Scene.user_id == user_id,
+            ).order_by(Scene.created_at.desc()).first()
+            content_id = latest_scene.content_id if latest_scene else None
+
         scenes = (
             db.query(Scene)
             .filter(
                 Scene.project_id == project_id,
+                Scene.user_id == user_id,
+                Scene.content_id == content_id,
             )
             .order_by(
                 Scene.scene_number.asc(),
@@ -109,6 +131,32 @@ class ProjectRenderService:
 
         for scene in scenes:
 
+            source_media = db.query(Media).filter(
+                Media.id == scene.media_id,
+                Media.media_type.in_(["image", "video"]),
+            ).first() if scene.media_id else None
+            source_exists = bool(source_media and ProjectRenderService._media_path(source_media.file_path).exists())
+
+            if not source_exists:
+                scene.media_id = None
+                db.flush()
+                try:
+                    DownloaderService.download(db=db, scene_id=scene.id, user_id=user_id)
+                    db.refresh(scene)
+                except Exception as exc:
+                    fallback_scene = next((item for item in reversed(scenes) if item.scene_number < scene.scene_number and item.media_id and item.media and ProjectRenderService._media_path(item.media.file_path).exists()), None)
+                    if fallback_scene is None:
+                        fallback_scene = next((item for item in scenes if item.media_id and item.media and ProjectRenderService._media_path(item.media.file_path).exists()), None)
+                    if fallback_scene is None:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Scene {scene.scene_number} has no media and automatic download failed: {exc}",
+                        ) from exc
+                    scene.media_id = fallback_scene.media_id
+                    scene.status = "media_fallback"
+                    db.commit()
+                    db.refresh(scene)
+
             # --------------------------------------------------
             # Find Existing Render
             # --------------------------------------------------
@@ -119,9 +167,10 @@ class ProjectRenderService:
                     Media.project_id == project_id,
                     Media.media_type == "render",
                     Media.title == (
-                        f"Scene {scene.scene_number} Final"
+                        f"Content {scene.content_id} Scene {scene.scene_number} Branded Final"
                     ),
                 )
+                .order_by(Media.created_at.desc())
                 .first()
             )
 
@@ -131,11 +180,43 @@ class ProjectRenderService:
 
             if render_media:
 
-                render_path = Path(
-                    render_media.file_path
+                render_path = ProjectRenderService._media_path(render_media.file_path)
+
+                latest_voice = max(
+                    (voice.updated_at or voice.created_at for voice in scene.voices),
+                    default=None,
+                )
+                latest_audio = (
+                    db.query(Media)
+                    .filter(
+                        Media.project_id == project_id,
+                        Media.user_id == user_id,
+                        Media.media_type == "audio",
+                        Media.title == f"Scene {scene.scene_number} Voice",
+                    )
+                    .order_by(Media.updated_at.desc())
+                    .first()
+                )
+                dependency_dates = [
+                    value for value in (
+                        scene.content.updated_at,
+                        scene.updated_at,
+                        source_media.updated_at if source_media else None,
+                        latest_voice,
+                        (latest_audio.updated_at or latest_audio.created_at) if latest_audio else None,
+                    ) if value is not None
+                ]
+                render_is_current = (
+                    not dependency_dates
+                    or not render_media.created_at
+                    or all(render_media.created_at >= value for value in dependency_dates)
                 )
 
-                if render_path.exists():
+                if (
+                    render_path.exists()
+                    and render_is_current
+                    and FFmpegClient.is_media_readable(str(render_path))
+                ):
 
                     rendered_files.append(
                         str(
@@ -160,6 +241,7 @@ class ProjectRenderService:
             RenderService.generate(
                 db=db,
                 scene_id=scene.id,
+                user_id=user_id,
             )
 
             # --------------------------------------------------
@@ -172,9 +254,10 @@ class ProjectRenderService:
                     Media.project_id == project_id,
                     Media.media_type == "render",
                     Media.title == (
-                        f"Scene {scene.scene_number} Final"
+                        f"Content {scene.content_id} Scene {scene.scene_number} Branded Final"
                     ),
                 )
+                .order_by(Media.created_at.desc())
                 .first()
             )
 
@@ -188,9 +271,7 @@ class ProjectRenderService:
                     ),
                 )
 
-            render_path = Path(
-                render_media.file_path
-            )
+            render_path = ProjectRenderService._media_path(render_media.file_path)
 
             if not render_path.exists():
 
@@ -257,7 +338,7 @@ class ProjectRenderService:
         # Final Output
         # ======================================================
 
-        final_filename = "final.mp4"
+        final_filename = f"content_{content_id}_final.mp4"
 
         final_output = (
             output_folder / final_filename
@@ -275,6 +356,22 @@ class ProjectRenderService:
                 final_output.resolve()
             ),
         )
+
+        music = db.query(Media).filter(
+            Media.project_id == project_id,
+            Media.user_id == user_id,
+            Media.media_type == "music",
+            Media.status == "ready",
+        ).order_by(Media.created_at.desc()).first()
+        music_path = ProjectRenderService._media_path(music.file_path) if music else None
+        if music_path and music_path.exists():
+            mixed_output = output_folder / f"content_{content_id}_mixed.mp4"
+            FFmpegClient.add_background_music(
+                video_path=str(final_output.resolve()),
+                music_path=str(music_path.resolve()),
+                output_path=str(mixed_output.resolve()),
+            )
+            os.replace(mixed_output, final_output)
 
         # ======================================================
         # Validate Output
@@ -307,6 +404,7 @@ class ProjectRenderService:
             .filter(
                 Media.project_id == project_id,
                 Media.media_type == "final",
+                Media.title == f"Content {content_id} Final",
             )
             .first()
         )
@@ -331,7 +429,7 @@ class ProjectRenderService:
 
             provider="FFmpeg",
 
-            title="Final Project Video",
+            title=f"Content {content_id} Final",
 
             file_name=final_filename,
 
@@ -339,7 +437,7 @@ class ProjectRenderService:
                 final_output
             ),
 
-            file_url="",
+            file_url=f"/storage/projects/{project_id}/output/{final_filename}",
 
             mime_type="video/mp4",
 
@@ -392,11 +490,15 @@ class ProjectRenderService:
 
             "project_id": project.id,
 
+            "content_id": content_id,
+
             "media_id": media.id,
 
             "file_name": media.file_name,
 
             "file_path": media.file_path,
+
+            "file_url": media.file_url,
 
             "duration": media.duration,
 
@@ -412,14 +514,17 @@ class ProjectRenderService:
     def get_final_video(
         db: Session,
         project_id: int,
+        user_id: int,
     ):
 
         media = (
-            db.query(Media)
+            db.query(Media).join(Project, Project.id == Media.project_id)
             .filter(
                 Media.project_id == project_id,
                 Media.media_type == "final",
+                Project.user_id == user_id,
             )
+            .order_by(Media.created_at.desc())
             .first()
         )
 

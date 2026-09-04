@@ -20,21 +20,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add generation_config to contents table."""
-
-    op.add_column(
-        "contents",
-        sa.Column(
-            "generation_config",
-            sa.JSON(),
-            nullable=True
+    inspector = sa.inspect(op.get_bind())
+    columns = {column["name"] for column in inspector.get_columns("contents")}
+    if "generation_config" not in columns:
+        op.add_column(
+            "contents",
+            sa.Column("generation_config", sa.JSON(), nullable=True),
         )
-    )
 
 
 def downgrade() -> None:
     """Remove generation_config from contents table."""
-
-    op.drop_column(
-        "contents",
-        "generation_config"
-    )
+    inspector = sa.inspect(op.get_bind())
+    columns = {column["name"] for column in inspector.get_columns("contents")}
+    if "generation_config" in columns:
+        op.drop_column("contents", "generation_config")

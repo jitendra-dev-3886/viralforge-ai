@@ -5,38 +5,28 @@ export const createMedia = async (payload) => {
     return response.data;
 };
 
-export const getAllMedia = async (userId = 1) => {
-    const response = await api.get("/media/", {
-        params: { user_id: userId },
-    });
+export const getAllMedia = async () => {
+    const response = await api.get("/media/");
     return response.data;
 };
 
-export const getMedia = async (mediaId, userId = 1) => {
-    const response = await api.get(`/media/${mediaId}`, {
-        params: { user_id: userId },
-    });
+export const getMedia = async (mediaId) => {
+    const response = await api.get(`/media/${mediaId}`);
     return response.data;
 };
 
-export const getProjectMedia = async (projectId, userId = 1) => {
-    const response = await api.get(`/media/project/${projectId}`, {
-        params: { user_id: userId },
-    });
+export const getProjectMedia = async (projectId) => {
+    const response = await api.get(`/media/project/${projectId}`);
     return response.data;
 };
 
-export const updateMedia = async (mediaId, payload, userId = 1) => {
-    const response = await api.put(`/media/${mediaId}`, payload, {
-        params: { user_id: userId },
-    });
+export const updateMedia = async (mediaId, payload) => {
+    const response = await api.put(`/media/${mediaId}`, payload);
     return response.data;
 };
 
-export const deleteMedia = async (mediaId, userId = 1) => {
-    const response = await api.delete(`/media/${mediaId}`, {
-        params: { user_id: userId },
-    });
+export const deleteMedia = async (mediaId) => {
+    const response = await api.delete(`/media/${mediaId}`);
     return response.data;
 };
 

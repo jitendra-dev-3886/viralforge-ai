@@ -49,7 +49,7 @@ export default function ProjectDetail() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-8">
+        <div className="mx-auto max-w-3xl p-1 sm:p-4 lg:p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">{project.title}</h1>

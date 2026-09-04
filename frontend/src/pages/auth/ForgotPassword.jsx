@@ -118,9 +118,9 @@ export default function ForgotPassword() {
 
       {/* Right Section */}
 
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex flex-1 items-center justify-center p-4 sm:p-8">
 
-        <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md">
+        <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-10">
 
           <div className="text-center mb-8">
 

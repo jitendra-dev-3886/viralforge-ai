@@ -51,7 +51,7 @@ export default function ImagesPage() {
     }, [selectedProjectId]);
 
     return (
-        <div className="p-8">
+        <div className="p-1 sm:p-4 lg:p-8">
             <h1 className="text-3xl font-bold mb-6">Image Library</h1>
 
             <div className="mb-6 max-w-2xl">

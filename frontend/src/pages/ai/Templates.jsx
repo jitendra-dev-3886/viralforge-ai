@@ -7,7 +7,7 @@ export default function Templates() {
 
     return (
 
-        <div className="min-h-screen bg-slate-100 p-10">
+        <div className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-10">
 
             <div className="mb-10">
 
@@ -27,7 +27,7 @@ export default function Templates() {
 
                     <div
                         key={template.id}
-                        className="bg-white rounded-2xl shadow hover:shadow-xl transition p-8 cursor-pointer"
+                        className="cursor-pointer rounded-2xl bg-white p-5 shadow transition hover:shadow-xl sm:p-8"
                         onClick={() =>
                             navigate(
                                 `/generator/${template.id}`

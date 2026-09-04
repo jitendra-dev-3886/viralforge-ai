@@ -51,6 +51,13 @@ class AIService:
             )
         )
 
+        # A trailing comma is a common harmless JSON-mode failure. Remove it
+        # before a closing object/array without touching the generated text.
+        candidates.extend(
+            re.sub(r",\s*([}\]])", r"\1", candidate)
+            for candidate in list(candidates)
+        )
+
         decoder = json.JSONDecoder()
         for candidate in candidates:
             try:
@@ -117,9 +124,41 @@ class AIService:
         return "video" if fallback == "video" else "image"
 
     @staticmethod
+    def _generate_from_provider(provider: str, prompt: str) -> tuple[str, str]:
+        """Generate one response, preferring provider JSON mode when available."""
+        if provider == "gemini":
+            return GeminiClient.generate(prompt), "gemini-2.5-flash"
+        if provider == "groq":
+            return (
+                groq_client.generate(prompt, json_mode=True),
+                getattr(groq_client, "last_model", os.getenv("GROQ_MODEL", "groq-model")),
+            )
+        if provider == "cerebras":
+            return (
+                cerebras_client.generate(prompt),
+                getattr(cerebras_client, "last_model", os.getenv("CEREBRAS_MODEL", "cerebras-model")),
+            )
+        if provider == "openrouter":
+            return (
+                openrouter_client.generate(prompt),
+                os.getenv("OPENROUTER_MODEL", "openai/gpt-4o"),
+            )
+        if provider == "ollama":
+            return ollama_client.generate(prompt), os.getenv("OLLAMA_MODEL", "qwen3:4b")
+        if provider == "localai":
+            return localai_client.generate(prompt), os.getenv("LOCALAI_MODEL", "local-model")
+        if provider in ("llama_cpp", "llamacpp"):
+            return (
+                llama_cpp_client.generate(prompt),
+                os.getenv("LLAMA_CPP_MODEL_PATH", "local-llama-cpp"),
+            )
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    @staticmethod
     def generate(
         request: GenerateRequest,
         db: Session,
+        user_id: int,
     ):
 
         try:
@@ -143,7 +182,7 @@ class AIService:
                             ],
                         }
                     )
-                    result = AIService.generate(focused_request, db)
+                    result = AIService.generate(focused_request, db, user_id)
                     results.append(result)
 
                     platform_key = AIService._response_key(output["platform"])
@@ -175,7 +214,10 @@ class AIService:
 
             project = (
                 db.query(Project)
-                .filter(Project.id == request.project_id)
+                .filter(
+                    Project.id == request.project_id,
+                    Project.user_id == user_id,
+                )
                 .first()
             )
 
@@ -229,6 +271,7 @@ class AIService:
                     providers_list = [reqp]
 
             ai_text = None
+            ai_data = None
             model = None
             used_provider = None
             errors = []
@@ -240,15 +283,12 @@ class AIService:
                         model = "gemini-2.5-flash"
 
                     elif p == "groq":
-                        ai_text = groq_client.generate(prompt)
-                        model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+                        ai_text = groq_client.generate(prompt, json_mode=True)
+                        model = getattr(groq_client, "last_model", os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b"))
 
                     elif p == "cerebras":
                             ai_text = cerebras_client.generate(prompt)
-                            model = os.getenv(
-                                "CEREBRAS_MODEL",
-                                "llama-3.3-70b"
-                            )
+                            model = getattr(cerebras_client, "last_model", os.getenv("CEREBRAS_MODEL", "gpt-oss-120b"))
 
                     elif p == "openrouter":
                         ai_text = openrouter_client.generate(prompt)
@@ -278,6 +318,20 @@ class AIService:
                     else:
                         raise Exception(f"Unsupported provider: {p}")
 
+                    try:
+                        ai_data = AIService._parse_json_response(ai_text)
+                    except ValueError as parse_error:
+                        logger.warning(
+                            "Provider %s returned malformed JSON; retrying once: %s",
+                            p,
+                            parse_error,
+                        )
+                        ai_text, model = AIService._generate_from_provider(
+                            p,
+                            PromptEngine.build_json_retry(request),
+                        )
+                        ai_data = AIService._parse_json_response(ai_text)
+
                     used_provider = p
                     provider = p
                     break
@@ -287,15 +341,14 @@ class AIService:
                     errors.append(f"{p}: {str(e)}")
                     continue
 
-            if not ai_text:
+            if not ai_text or ai_data is None:
                 logger.error(f"All providers failed: {errors}")
                 raise HTTPException(
-                    status_code=503,
+                    status_code=502,
                     detail={
-                        "code": "ai_providers_unavailable",
+                        "code": "ai_invalid_response",
                         "message": (
-                            "No configured AI provider is currently available. "
-                            "Groq may be rate-limited; try again shortly or select Gemini."
+                            "The AI provider returned an incomplete response. Please generate again."
                         ),
                     },
                 )
@@ -307,8 +360,6 @@ class AIService:
             # =====================================================
 
             try:
-
-                ai_data = AIService._parse_json_response(ai_text)
 
                 # ==========================================
                 # Normalize AI Response
@@ -453,6 +504,40 @@ class AIService:
                 if len(carousel_scenes) > 8:
                     carousel_scenes = carousel_scenes[:8]
 
+                # Some providers occasionally ignore the requested scene count.
+                # Keep carousel generation usable by constructing meaningful
+                # cover/value/CTA slides from the response instead of failing.
+                fallback_texts = [
+                    (output_data or ai_data).get("hook"),
+                    (output_data or ai_data).get("title"),
+                    (output_data or ai_data).get("description") or (output_data or ai_data).get("script"),
+                    (output_data or ai_data).get("cta"),
+                ]
+                for fallback_text in fallback_texts:
+                    if len(carousel_scenes) >= 3:
+                        break
+                    text = re.sub(r"\s+", " ", str(fallback_text or "")).strip()
+                    if not text or any(text == str(item.get("text", "")).strip() for item in carousel_scenes):
+                        continue
+                    keyword = " ".join(text.split()[:5]) or "inspirational lifestyle"
+                    carousel_scenes.append({
+                        "scene": len(carousel_scenes) + 1,
+                        "text": text,
+                        "keyword": keyword,
+                        "image_prompt": keyword,
+                        "video_prompt": keyword,
+                        "duration": 5,
+                        "media_type": "image",
+                        "platform": request.platforms[0],
+                    })
+
+                while carousel_scenes and len(carousel_scenes) < 3:
+                    source = carousel_scenes[-1]
+                    carousel_scenes.append({
+                        **source,
+                        "scene": len(carousel_scenes) + 1,
+                    })
+
                 if output_data is ai_data:
                     ai_data["scenes"] = carousel_scenes
                 else:
@@ -475,7 +560,7 @@ class AIService:
                 if len(target_story.get("scenes") or []) < 3:
                     raise HTTPException(
                         status_code=500,
-                        detail="Carousel output must contain at least 3 image scenes."
+                        detail="The AI provider returned no usable carousel image scenes. Please generate again."
                     )
 
             # =====================================================
@@ -572,6 +657,29 @@ class AIService:
 
                 status="generated",
 
+                generation_config={
+                    "package": request.package,
+                    "provider": request.provider,
+                    "platforms": request.platforms,
+                    "content_types": request.content_types,
+                    "outputs": request.outputs,
+                    "niche": request.niche,
+                    "topic": request.topic,
+                    "scene_count": request.scene_count,
+                    "total_duration": request.total_duration,
+                    "style": request.style,
+                    "description": (output_data or ai_data).get("description", ""),
+                    "story": (output_data or ai_data).get("story", ""),
+                    "branding": {
+                        "username": project.user.name if project.user else "",
+                        "brand_name": project.brand.name if project.brand else "",
+                        "logo": project.brand.logo if project.brand else "",
+                        "primary_color": project.brand.primary_color if project.brand else None,
+                        "secondary_color": project.brand.secondary_color if project.brand else None,
+                        "font": project.brand.font if project.brand else None,
+                    },
+                },
+
             )
 
             db.add(content)
@@ -612,6 +720,7 @@ class AIService:
                         media = DownloaderService.download(
                             db=db,
                             scene_id=scene.id,
+                            user_id=project.user_id,
                         )
                         downloaded_media[scene.scene_number] = media
                 except Exception as e:
@@ -634,6 +743,8 @@ class AIService:
                 "provider": provider,
 
                 "content_id": content.id,
+
+                "branding": content.generation_config.get("branding", {}),
 
                 "data": {
 
@@ -660,6 +771,18 @@ class AIService:
                     ),
 
                     "cta": content.cta,
+
+                    "content_id": content.id,
+
+                    "project_id": content.project_id,
+
+                    "platform": content.platform,
+
+                    "content_type": content.content_type,
+
+                    "branding": content.generation_config.get("branding", {}),
+
+                    "generation_config": content.generation_config,
 
                     "scenes": [
                         {

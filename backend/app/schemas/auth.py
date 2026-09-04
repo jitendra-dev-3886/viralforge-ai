@@ -34,6 +34,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     is_active: bool
     is_verified: bool
+    is_super_admin: bool = False
 
 
 # ------------------------
@@ -62,3 +63,7 @@ class RegisterResponse(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+
+class SetPasswordRequest(BaseModel):
+    password: str

@@ -1,30 +1,6 @@
-export default function Analytics() {
-  return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Analytics</h1>
-        <p className="text-slate-500 mt-2">Monitor performance metrics for your AI content and brand campaigns.</p>
-      </div>
+import { useEffect, useState } from "react";
+import { useProject } from "../../context/ProjectContext";
+import { getAnalytics } from "../../api/analytics";
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <p className="text-slate-500">Engagement</p>
-          <h2 className="mt-3 text-4xl font-bold text-slate-900">1.8K</h2>
-          <p className="mt-2 text-sm text-slate-500">Total likes, comments, and shares.</p>
-        </div>
-
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <p className="text-slate-500">Reach</p>
-          <h2 className="mt-3 text-4xl font-bold text-slate-900">72K</h2>
-          <p className="mt-2 text-sm text-slate-500">Impressions across all platforms.</p>
-        </div>
-
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <p className="text-slate-500">Conversions</p>
-          <h2 className="mt-3 text-4xl font-bold text-slate-900">245</h2>
-          <p className="mt-2 text-sm text-slate-500">Actions taken from your content.</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+export default function Analytics(){const{projects}=useProject();const[projectId,setProjectId]=useState("");const[data,setData]=useState(null);useEffect(()=>{getAnalytics(projectId).then(setData)},[projectId]);const totals=data?.totals||{};return <div className="p-1 sm:p-4 lg:p-8"><h1 className="text-3xl font-bold">Analytics</h1><p className="mt-2 text-slate-500">Real generation and media statistics from your workspace.</p><select value={projectId} onChange={e=>setProjectId(e.target.value?Number(e.target.value):"")} className="mt-6 w-full max-w-xl rounded-xl border p-3"><option value="">All projects</option>{projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select><div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[["Generated content",totals.contents],["Scenes",totals.scenes],["Ready media",totals.ready_media],["Final renders",totals.final_renders]].map(([label,value])=><div key={label} className="rounded-2xl bg-white p-6 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-4xl font-bold">{value??"—"}</p></div>)}</div><div className="mt-6 grid gap-6 lg:grid-cols-2"><Breakdown title="By platform" items={data?.by_platform}/><Breakdown title="By content type" items={data?.by_content_type}/></div></div>}
+function Breakdown({title,items=[]}){const max=Math.max(1,...items.map(i=>i.count));return <section className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="text-lg font-bold">{title}</h2><div className="mt-4 space-y-4">{items.length?items.map(item=><div key={item.name}><div className="flex justify-between gap-3 text-sm"><span>{item.name}</span><strong>{item.count}</strong></div><div className="mt-1 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-indigo-600" style={{width:`${item.count/max*100}%`}}/></div></div>):<p className="text-sm text-slate-500">No data available.</p>}</div></section>}

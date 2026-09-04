@@ -76,6 +76,10 @@ class SceneUpdate(BaseModel):
     status: Optional[str] = None
 
 
+class SceneReorder(BaseModel):
+    scene_ids: list[int]
+
+
 # ==========================================================
 # Scene Response
 # ==========================================================

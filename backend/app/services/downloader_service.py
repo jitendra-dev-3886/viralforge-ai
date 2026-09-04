@@ -39,6 +39,7 @@ class DownloaderService:
     def download(
         db: Session,
         scene_id: int,
+        user_id: int | None = None,
     ):
 
         # ======================================================
@@ -49,13 +50,14 @@ class DownloaderService:
 
             db.query(Scene)
 
-            .filter(
-                Scene.id == scene_id,
-            )
+            .filter(Scene.id == scene_id)
 
             .first()
 
         )
+
+        if scene and user_id is not None and scene.user_id != user_id:
+            scene = None
 
         if not scene:
 

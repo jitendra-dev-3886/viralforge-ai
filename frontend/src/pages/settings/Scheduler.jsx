@@ -1,15 +1,8 @@
-export default function Scheduler() {
-  return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Scheduler</h1>
-        <p className="text-slate-500 mt-2">Schedule content publishing across your connected platforms.</p>
-      </div>
+import { useEffect,useState } from "react";
+import { createSchedule,deleteSchedule,getSchedules,updateSchedule } from "../../api/schedule";
+import { getAllContents } from "../../api/content";
 
-      <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
-        <h2 className="text-2xl font-semibold">No scheduled posts yet</h2>
-        <p className="text-slate-500 mt-3">Create a project or generate content to start scheduling posts.</p>
-      </div>
-    </div>
-  );
-}
+export default function Scheduler(){const[items,setItems]=useState([]);const[contents,setContents]=useState([]);const[contentId,setContentId]=useState("");const[when,setWhen]=useState("");const[error,setError]=useState("");
+const load=async()=>{const[s,c]=await Promise.all([getSchedules(),getAllContents({status:"approved"})]);setItems(s.schedules||[]);setContents(c.contents||[]);};useEffect(()=>{load().catch(()=>setError("Unable to load scheduler."));},[]);
+const add=async(e)=>{e.preventDefault();const content=contents.find(x=>x.id===Number(contentId));if(!content)return;try{await createSchedule({project_id:content.project_id,content_id:content.id,platform:content.platform,scheduled_at:new Date(when).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});setContentId("");setWhen("");await load();}catch(err){setError(err.response?.data?.detail||"Scheduling failed.");}};
+return <div className="p-1 sm:p-4 lg:p-8"><h1 className="text-3xl font-bold">Scheduler</h1><p className="mt-2 text-slate-500">Schedule approved content. Mark published after posting manually; connected automatic publishing can be added when platform credentials are available.</p>{error&&<p className="mt-4 rounded-xl bg-red-50 p-3 text-red-700">{error}</p>}<form onSubmit={add} className="mt-6 grid gap-3 rounded-2xl bg-white p-5 shadow-sm md:grid-cols-[1fr_260px_auto]"><select required value={contentId} onChange={e=>setContentId(e.target.value)} className="rounded-xl border p-3"><option value="">Select approved content</option>{contents.map(x=><option key={x.id} value={x.id}>{x.title} — {x.platform}</option>)}</select><input required type="datetime-local" value={when} onChange={e=>setWhen(e.target.value)} className="rounded-xl border p-3"/><button className="rounded-xl bg-indigo-600 px-5 text-white">Schedule</button></form><div className="mt-6 space-y-3">{items.map(item=><article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 shadow-sm"><div><strong>{item.platform}</strong><p className="text-sm text-slate-500">Content #{item.content_id} · {new Date(item.scheduled_at).toLocaleString()} · <span className="capitalize">{item.status}</span></p></div><div className="flex gap-2">{item.status!=="published"&&<button onClick={()=>updateSchedule(item.id,{status:"published"}).then(load)} className="rounded-lg bg-emerald-100 px-3 py-2 text-sm text-emerald-700">Mark published</button>}<button onClick={()=>updateSchedule(item.id,{status:"cancelled"}).then(load)} className="rounded-lg border px-3 py-2 text-sm">Cancel</button><button onClick={()=>deleteSchedule(item.id).then(load)} className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Delete</button></div></article>)}</div>{items.length===0&&<div className="mt-6 rounded-2xl border border-dashed p-10 text-center text-slate-500">No scheduled posts yet.</div>}</div>}

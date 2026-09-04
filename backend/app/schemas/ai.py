@@ -28,6 +28,10 @@ class GenerateRequest(BaseModel):
 
     outputs: Optional[List[str]] = None
 
+    scene_count: Optional[int] = Field(None, ge=1, le=12)
+    total_duration: Optional[int] = Field(None, ge=5, le=180)
+    style: Optional[str] = Field(None, max_length=50)
+
 
 # ==========================================================
 # AI Generated Content
@@ -62,6 +66,8 @@ class AIContent(BaseModel):
 
     description: Optional[str] = ""
 
+    script: Optional[str] = ""
+
     script: str
 
     caption: str
@@ -88,6 +94,8 @@ class GenerateResponse(BaseModel):
     provider: str
 
     content_id: int
+
+    branding: Optional[dict[str, Any]] = None
 
     data: Any
 

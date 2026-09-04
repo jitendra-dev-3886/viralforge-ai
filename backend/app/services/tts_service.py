@@ -16,9 +16,10 @@ class TTSService:
 
         output_file = os.path.join(output_dir, filename)
 
+        voice = "hi-IN-SwaraNeural" if any("\u0900" <= char <= "\u097f" for char in text) else TTSService.VOICE
         communicate = edge_tts.Communicate(
             text=text,
-            voice=TTSService.VOICE
+            voice=voice
         )
 
         await communicate.save(output_file)

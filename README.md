@@ -2,6 +2,8 @@
 
 > **AI-Powered Content Automation Platform** for creators, marketers, startups, agencies, and businesses to generate high-quality content, images, blogs, and social media posts in seconds.
 
+See the [User Manual](USER_MANUAL.md) for the complete create, edit, render, export, scheduling, and admin workflow.
+
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green)
 ![React](https://img.shields.io/badge/React-Frontend-61DAFB)

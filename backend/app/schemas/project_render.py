@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 class ProjectRenderRequest(BaseModel):
 
     project_id: int
+    content_id: Optional[int] = None
 
 
 # ==========================================================
