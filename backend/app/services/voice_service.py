@@ -136,10 +136,6 @@ class VoiceService:
             selected_voice, selected_language = VoiceService._voice_for(
                 request.text, request.language, request.voice
             )
-
-            selected_voice, selected_language = VoiceService._voice_for(
-                voice.text, voice.language, voice.voice
-            )
             communicate = edge_tts.Communicate(
                 text=request.text,
                 voice=selected_voice,
