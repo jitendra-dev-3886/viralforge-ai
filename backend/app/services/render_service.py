@@ -1,6 +1,4 @@
 import os
-import re
-import textwrap
 import hashlib
 from pathlib import Path
 import requests
@@ -84,9 +82,11 @@ class RenderService:
             db.query(Voice)
             .filter(
                 Voice.scene_id == scene.id,
+                Voice.content_id == scene.content_id,
+                Voice.user_id == user_id,
                 Voice.status == "generated",
             )
-            .order_by(Voice.created_at.desc())
+            .order_by(Voice.updated_at.desc(), Voice.created_at.desc(), Voice.id.desc())
             .first()
         )
 
@@ -114,19 +114,8 @@ class RenderService:
         if not source_path or not source_path.exists():
             raise HTTPException(status_code=404, detail="The saved scene media file is missing from storage.")
         voice_path = _stored_path(voice.audio_path) if voice else None
-        if not voice_path or not voice_path.exists():
-            legacy_audio = (
-                db.query(Media)
-                .filter(
-                    Media.project_id == scene.project_id,
-                    Media.user_id == user_id,
-                    Media.media_type == "audio",
-                    Media.title == f"Scene {scene.scene_number} Voice",
-                )
-                .order_by(Media.created_at.desc())
-                .first()
-            )
-            voice_path = _stored_path(legacy_audio.file_path) if legacy_audio else None
+        if voice and (not voice_path or not voice_path.is_file()):
+            raise HTTPException(status_code=422, detail=f"Scene {scene.scene_number}'s voice file is missing. Generate its voice again before merging.")
         abs_audio_path = str(voice_path) if voice_path and voice_path.exists() else None
         abs_output_path = str(output_path.resolve())
 
@@ -152,12 +141,7 @@ class RenderService:
         logo_position = overlay_layout.get("logo", {})
         username_position = overlay_layout.get("username", {})
         username = branding.get("username") or branding.get("brand_name") or ""
-        raw_overlay_text = str(scene.text or "").strip()
-        explicit_lines = [re.sub(r"[ \t]+", " ", line).strip() for line in raw_overlay_text.splitlines() if line.strip()]
-        if len(explicit_lines) > 1:
-            overlay_text = "\n".join(explicit_lines[:5])
-        else:
-            overlay_text = "\n".join(textwrap.wrap(re.sub(r"\s+", " ", raw_overlay_text), width=28)[:5])
+        overlay_text = str(scene.text or "").strip()
         logo_path = None
         logo_url = branding.get("logo")
         if logo_url:
@@ -186,7 +170,7 @@ class RenderService:
         # Render
         # =====================================================
 
-        FFmpegClient.render_media(
+        render_result = FFmpegClient.render_media(
             video_path=abs_video_path,
             audio_path=abs_audio_path,
             output_path=abs_output_path,
@@ -220,7 +204,7 @@ class RenderService:
             file_url=f"/storage/projects/{scene.project_id}/render/{filename}",
             mime_type="video/mp4",
             extension=".mp4",
-            duration=scene.duration,
+            duration=round(render_result["duration"]),
             width=output_width,
             height=output_height,
             file_size=os.path.getsize(abs_output_path),

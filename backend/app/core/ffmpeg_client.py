@@ -1,10 +1,22 @@
 import os
 import shutil
 import subprocess
+import re
 from pathlib import Path
+
+from app.core.text_overlay import render_caption
 
 
 class FFmpegClient:
+
+    @staticmethod
+    def audio_duration(path: str) -> float:
+        probe = subprocess.run([FFmpegClient.check_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", probe.stderr)
+        if not match or "Audio:" not in probe.stderr:
+            raise ValueError("The selected voice recording is unreadable. Generate the voice again before merging.")
+        hours, minutes, seconds = map(float, match.groups())
+        return hours * 3600 + minutes * 60 + seconds
 
     @staticmethod
     def is_media_readable(path: str) -> bool:
@@ -42,7 +54,7 @@ class FFmpegClient:
         command = [ffmpeg, "-y", "-i", video_path, "-stream_loop", "-1", "-i", music_path]
         if has_audio:
             command += [
-                "-filter_complex", "[1:a]volume=0.18[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+                "-filter_complex", "[1:a]volume=0.18[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95:level=0[a]",
                 "-map", "0:v:0", "-map", "[a]",
             ]
         else:
@@ -71,18 +83,24 @@ class FFmpegClient:
             command += ["-stream_loop", "-1", "-i", video_path]
         if audio_path:
             command += ["-i", audio_path]
-        logo_index = 2 if audio_path else 1
+            duration = max(float(duration), FFmpegClient.audio_duration(audio_path))
+        else:
+            command += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+        logo_index = 2
         if logo_path:
             command += ["-i", logo_path]
-        # Passing user text directly in a drawtext expression breaks on common
-        # punctuation (especially apostrophes) and can also be interpreted as
-        # filter syntax. Text files keep captions Unicode-safe and literal.
-        overlay_text_path = Path(f"{output_path}.overlay.txt")
-        username_text_path = Path(f"{output_path}.username.txt")
-        overlay_text_path.write_text(str(overlay_text or ""), encoding="utf-8")
-        username_text_path.write_text(str(username or ""), encoding="utf-8")
-        def filter_path(value):
-            return str(Path(value).resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+        overlay_text_path = Path(f"{output_path}.overlay.png")
+        username_text_path = Path(f"{output_path}.username.png")
+        try:
+            render_caption(overlay_text, overlay_text_path, width, height)
+            render_caption(username, username_text_path, width, height, size_ratio=.024)
+        except Exception:
+            overlay_text_path.unlink(missing_ok=True)
+            username_text_path.unlink(missing_ok=True)
+            raise
+        text_index = logo_index + (1 if logo_path else 0)
+        username_index = text_index + 1
+        command += ["-i", str(overlay_text_path), "-i", str(username_text_path)]
         def position(value, default):
             try:
                 return max(3.0, min(97.0, float(value))) / 100
@@ -91,36 +109,33 @@ class FFmpegClient:
         text_x, text_y = position(text_x_pct, 50), position(text_y_pct, 68)
         logo_x, logo_y = position(logo_x_pct, 10), position(logo_y_pct, 8)
         username_x, username_y = position(username_x_pct, 82), position(username_y_pct, 92)
-        font_candidates = [
-            Path("C:/Windows/Fonts/NirmalaB.ttf"),
-            Path("C:/Windows/Fonts/arialbd.ttf"),
-            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        ]
-        font_path = next((item for item in font_candidates if item.exists()), None)
-        font_option = f"fontfile='{filter_path(font_path)}':" if font_path else ""
         fade_filter = f"fade=t=in:st=0:d=0.25,fade=t=out:st={max(0.3, duration - 0.35)}:d=0.35," if transition == "fade" else ""
         base_filter = (
             f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps=30,"
             "eq=contrast=1.035:saturation=1.08,"
             f"{fade_filter}"
-            f"drawbox=x=0:y=ih*0.56:w=iw:h=ih*0.44:color=black@0.48:t=fill,"
-            f"drawtext={font_option}textfile='{filter_path(overlay_text_path)}':fontcolor=white:fontsize={max(30, int(width * .047))}:"
-            f"line_spacing=12:borderw=3:bordercolor=black@0.7:x=w*{text_x}-text_w/2:y=h*{text_y}-text_h/2,"
-            f"drawtext={font_option}textfile='{filter_path(username_text_path)}':fontcolor=white:fontsize={max(20, int(width * .024))}:"
-            f"box=1:boxcolor=black@0.55:boxborderw=12:x=w*{username_x}-text_w/2:y=h*{username_y}-text_h/2"
+            f"drawbox=x=0:y=ih*0.56:w=iw:h=ih*0.44:color=black@0.48:t=fill"
+        )
+        margin = max(4, int(width * .03))
+        def caption_position(x, y):
+            return f"x='max({margin},min(W-w-{margin},W*{x}-w/2))':y='max({margin},min(H-h-{margin},H*{y}-h/2))'"
+        filter_arg = (
+            f"[0:v]{base_filter}[base];"
+            f"[base][{text_index}:v]overlay={caption_position(text_x, text_y)}[captioned];"
+            f"[captioned][{username_index}:v]overlay={caption_position(username_x, username_y)}[branded]"
         )
         if logo_path:
-            filter_arg = f"[0:v]{base_filter}[base];[{logo_index}:v]scale={max(70, int(width*.10))}:-1[logo];[base][logo]overlay=W*{logo_x}-w/2:H*{logo_y}-h/2[v]"
+            filter_arg += f";[{logo_index}:v]scale={max(70, int(width*.10))}:-1[logo];[branded][logo]overlay=W*{logo_x}-w/2:H*{logo_y}-h/2[v]"
         else:
-            filter_arg = f"[0:v]{base_filter}[v]"
+            filter_arg += ";[branded]null[v]"
         command += [
             "-filter_complex", filter_arg, "-map", "[v]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
         ]
-        if audio_path:
-            command += ["-map", "1:a:0", "-c:a", "aac", "-b:a", "192k", "-shortest"]
-        else:
-            command += ["-an", "-t", str(max(1, duration))]
+        # Every clip needs the same audio stream layout for safe concatenation.
+        # Pad short narration and extend the scene when narration is longer.
+        command += ["-map", "1:a:0", "-af", "apad", "-ar", "48000", "-ac", "2",
+                    "-c:a", "aac", "-b:a", "192k", "-t", str(max(1, duration))]
         command += ["-movflags", "+faststart", str(temporary_output)]
         try:
             process = subprocess.run(command, capture_output=True, text=True)
@@ -135,7 +150,7 @@ class FFmpegClient:
             temporary_output.unlink(missing_ok=True)
         if not output.exists() or output.stat().st_size <= 0:
             raise Exception("FFmpeg completed but the scene output was not created.")
-        return {"success": True, "output": output_path}
+        return {"success": True, "output": output_path, "duration": max(1, duration)}
 
     # ==========================================================
     # Check FFmpeg

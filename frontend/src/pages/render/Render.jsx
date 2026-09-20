@@ -75,7 +75,8 @@ export default function RenderPage() {
             setRenderResult(response);
             if (response.success) {
                 const finalResponse = await getFinalProjectVideo(selectedProjectId);
-                setFinalVideo(finalResponse.video || null);
+                const video = finalResponse.video;
+                setFinalVideo(video?.file_url ? { ...video, file_url: `${video.file_url}${video.file_url.includes("?") ? "&" : "?"}v=${Date.now()}` } : video || null);
             }
         } catch (err) {
             console.error(err);

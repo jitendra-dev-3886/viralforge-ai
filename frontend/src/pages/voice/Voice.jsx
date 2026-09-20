@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { getProjects } from "../../api/project";
 import { getProjectContents } from "../../api/content";
 import { getContentScenes } from "../../api/scene";
-import { generateVoice, getProjectVoices } from "../../api/voice";
+import { deleteVoice, generateVoice, getProjectVoices } from "../../api/voice";
+import DeleteButton from "../../components/DeleteButton";
 import { assetUrl } from "../../api/axios";
 
 const VOICES = {
@@ -114,21 +115,25 @@ export default function VoicePage() {
     }, [sceneId, scenes]);
 
     useEffect(() => {
+        let active = true;
         if (!selectedProjectId) {
             setProjectVoices([]);
             return;
         }
 
         const loadVoices = async () => {
+            setProjectVoices([]);
+            setResponse(null);
             try {
                 const response = await getProjectVoices(selectedProjectId);
-                setProjectVoices(response.voices || []);
+                if (active) setProjectVoices(response.voices || []);
             } catch (err) {
                 console.error(err);
             }
         };
 
         loadVoices();
+        return () => { active = false; };
     }, [selectedProjectId]);
 
     const handleGenerate = async () => {
@@ -299,6 +304,7 @@ export default function VoicePage() {
                                         <span>{voice.provider}</span>
                                         <span>{voice.language}</span>
                                         <span>Status: {voice.status}</span>
+                                        <DeleteButton label={`voice recording ${voice.id}`} description="This removes the voice recording and its linked audio media. You will need to generate it again to use it in future renders." onDelete={() => deleteVoice(voice.id)} onDeleted={() => { setProjectVoices((items) => items.filter((item) => item.id !== voice.id)); setResponse((current) => current?.voice?.id === voice.id ? null : current); }} />
                                     </div>
                                     <p className="mt-3 text-slate-700">{voice.text}</p>
                                     {voice.audio_url && <audio controls preload="none" className="mt-3 w-full" src={assetUrl(voice.audio_url)} />}

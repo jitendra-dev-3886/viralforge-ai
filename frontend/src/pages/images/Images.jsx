@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { getProjects } from "../../api/project";
-import { getProjectMedia } from "../../api/media";
+import { deleteMedia, getProjectMedia } from "../../api/media";
+import { assetUrl } from "../../api/axios";
+import DeleteButton from "../../components/DeleteButton";
 
 export default function ImagesPage() {
     const [projects, setProjects] = useState([]);
@@ -27,6 +29,7 @@ export default function ImagesPage() {
     }, []);
 
     useEffect(() => {
+        let active = true;
         if (!selectedProjectId) {
             setMediaItems([]);
             return;
@@ -34,25 +37,28 @@ export default function ImagesPage() {
 
         const loadMedia = async () => {
             setLoading(true);
+            setMediaItems([]);
             setError(null);
 
             try {
                 const response = await getProjectMedia(selectedProjectId);
-                setMediaItems(response.media || []);
+                if (active) setMediaItems(response.media || []);
             } catch (err) {
                 console.error(err);
-                setError("Unable to load media for selected project.");
+                if (active) setError("Unable to load media for selected project.");
             } finally {
-                setLoading(false);
+                if (active) setLoading(false);
             }
         };
 
         loadMedia();
+        return () => { active = false; };
     }, [selectedProjectId]);
 
     return (
         <div className="p-1 sm:p-4 lg:p-8">
-            <h1 className="text-3xl font-bold mb-6">Image Library</h1>
+            <h1 className="text-3xl font-bold mb-2">Media Library</h1>
+            <p className="mb-6 text-slate-500">Manage images, music, audio, and rendered videos for your projects.</p>
 
             <div className="mb-6 max-w-2xl">
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -86,7 +92,7 @@ export default function ImagesPage() {
                 {loading ? (
                     <p>Loading media...</p>
                 ) : mediaItems.length === 0 ? (
-                    <p className="text-slate-500">No images found for the selected project.</p>
+                    <p className="text-slate-500">No media found for the selected project.</p>
                 ) : (
                     <div className="space-y-4">
                         {mediaItems.map((item) => (
@@ -95,11 +101,12 @@ export default function ImagesPage() {
                                     <span className="font-semibold text-slate-700">{item.title || item.file_name}</span>
                                     <span className="text-sm text-slate-500">{item.media_type}</span>
                                     <span className="text-sm text-slate-500">{item.status}</span>
+                                    <DeleteButton label={item.title || item.file_name || `media ${item.id}`} description="This removes the item from your media library and unlinks it from scenes. Existing rendered videos are unchanged." onDelete={() => deleteMedia(item.id)} onDeleted={() => setMediaItems((items) => items.filter((media) => media.id !== item.id))} />
                                 </div>
                                 <div className="mt-3 text-sm text-slate-700">
                                     {item.file_url ? (
                                         <a
-                                            href={item.file_url}
+                                            href={assetUrl(item.file_url)}
                                             target="_blank"
                                             rel="noreferrer"
                                             className="text-blue-600 hover:underline"

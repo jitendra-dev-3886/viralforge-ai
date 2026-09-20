@@ -157,82 +157,8 @@ class ProjectRenderService:
                     db.commit()
                     db.refresh(scene)
 
-            # --------------------------------------------------
-            # Find Existing Render
-            # --------------------------------------------------
-
-            render_media = (
-                db.query(Media)
-                .filter(
-                    Media.project_id == project_id,
-                    Media.media_type == "render",
-                    Media.title == (
-                        f"Content {scene.content_id} Scene {scene.scene_number} Branded Final"
-                    ),
-                )
-                .order_by(Media.created_at.desc())
-                .first()
-            )
-
-            # --------------------------------------------------
-            # Check Existing File
-            # --------------------------------------------------
-
-            if render_media:
-
-                render_path = ProjectRenderService._media_path(render_media.file_path)
-
-                latest_voice = max(
-                    (voice.updated_at or voice.created_at for voice in scene.voices),
-                    default=None,
-                )
-                latest_audio = (
-                    db.query(Media)
-                    .filter(
-                        Media.project_id == project_id,
-                        Media.user_id == user_id,
-                        Media.media_type == "audio",
-                        Media.title == f"Scene {scene.scene_number} Voice",
-                    )
-                    .order_by(Media.updated_at.desc())
-                    .first()
-                )
-                dependency_dates = [
-                    value for value in (
-                        scene.content.updated_at,
-                        scene.updated_at,
-                        source_media.updated_at if source_media else None,
-                        latest_voice,
-                        (latest_audio.updated_at or latest_audio.created_at) if latest_audio else None,
-                    ) if value is not None
-                ]
-                render_is_current = (
-                    not dependency_dates
-                    or not render_media.created_at
-                    or all(render_media.created_at >= value for value in dependency_dates)
-                )
-
-                if (
-                    render_path.exists()
-                    and render_is_current
-                    and FFmpegClient.is_media_readable(str(render_path))
-                ):
-
-                    rendered_files.append(
-                        str(
-                            render_path.resolve()
-                        )
-                    )
-
-                    if first_scene_render is None:
-                        first_scene_render = render_media
-
-                    if render_media.duration:
-                        total_duration += (
-                            render_media.duration
-                        )
-
-                    continue
+            # Rebuild on an explicit merge so added, replaced, or deleted
+            # narration and overlay changes cannot reuse stale scene audio.
 
             # --------------------------------------------------
             # Render Scene
@@ -257,7 +183,7 @@ class ProjectRenderService:
                         f"Content {scene.content_id} Scene {scene.scene_number} Branded Final"
                     ),
                 )
-                .order_by(Media.created_at.desc())
+                .order_by(Media.created_at.desc(), Media.id.desc())
                 .first()
             )
 
@@ -362,7 +288,7 @@ class ProjectRenderService:
             Media.user_id == user_id,
             Media.media_type == "music",
             Media.status == "ready",
-        ).order_by(Media.created_at.desc()).first()
+        ).order_by(Media.created_at.desc(), Media.id.desc()).first()
         music_path = ProjectRenderService._media_path(music.file_path) if music else None
         if music_path and music_path.exists():
             mixed_output = output_folder / f"content_{content_id}_mixed.mp4"
@@ -524,7 +450,7 @@ class ProjectRenderService:
                 Media.media_type == "final",
                 Project.user_id == user_id,
             )
-            .order_by(Media.created_at.desc())
+            .order_by(Media.created_at.desc(), Media.id.desc())
             .first()
         )
 

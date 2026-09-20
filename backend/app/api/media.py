@@ -160,15 +160,17 @@ def download_media(
     )
 
     files = []
+    if len(media_items) != len(set(request.media_ids)):
+        raise HTTPException(status_code=404, detail="One or more selected files are no longer available. Refresh the library and try again.")
     for media in media_items:
         path = _safe_media_path(media.file_path)
         if path and path.is_file():
             files.append((media, path))
 
-    if not files:
+    if len(files) != len(media_items) or not files:
         raise HTTPException(
             status_code=404,
-            detail="The selected media files are not available for download.",
+            detail="One or more selected files are missing from storage. No files were downloaded. Refresh the library or regenerate the missing media.",
         )
 
     if len(files) == 1:
@@ -187,9 +189,12 @@ def download_media(
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for media, path in files:
                 filename = Path(media.file_name).name or f"media-{media.id}{path.suffix}"
-                if filename in used_names:
-                    filename = f"{media.id}-{filename}"
-                used_names.add(filename)
+                original_name = filename
+                suffix = 1
+                while filename.casefold() in used_names:
+                    filename = f"{media.id}-{suffix}-{original_name}"
+                    suffix += 1
+                used_names.add(filename.casefold())
                 archive.write(path, arcname=filename)
     except Exception as exc:
         shutil.rmtree(archive_dir, ignore_errors=True)

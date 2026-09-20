@@ -95,7 +95,8 @@ export default function ContentFinisher({ content, username = "", logo = "", pro
             if (music) await uploadProjectMusic(resolvedProjectId, music);
             const result = await generateProjectRender(resolvedProjectId, contentId);
             const url = result.file_url || result.output_url || result.render?.file_url;
-            setRenderUrl(assetUrl(url));
+            const freshUrl = assetUrl(url);
+            setRenderUrl(freshUrl ? `${freshUrl}${freshUrl.includes("?") ? "&" : "?"}v=${Date.now()}` : "");
             setMessage("Final post-ready video created with overlays, transitions, narration, and music.");
         } catch (error) {
             setMessage(error.response?.data?.detail || error.message || "Unable to create the final render.");
@@ -115,7 +116,7 @@ export default function ContentFinisher({ content, username = "", logo = "", pro
             }}
             onPointerUp={() => setDragging(null)}
             className={`absolute z-10 cursor-grab touch-none select-none active:cursor-grabbing ${className}`}
-            style={{ left: `${layout[name]?.x ?? DEFAULT_LAYOUT[name].x}%`, top: `${layout[name]?.y ?? DEFAULT_LAYOUT[name].y}%`, transform: "translate(-50%, -50%)" }}
+            style={{ left: `${layout[name]?.x ?? DEFAULT_LAYOUT[name].x}%`, top: `${layout[name]?.y ?? DEFAULT_LAYOUT[name].y}%`, transform: "translate(-50%, -50%)", ...(name === "text" ? { width: "84%" } : {}) }}
             aria-label={`Drag ${name} overlay`}
         >
             {children}
@@ -147,7 +148,7 @@ export default function ContentFinisher({ content, username = "", logo = "", pro
                     )}
                     <div className="absolute inset-x-0 bottom-0 h-[44%] bg-gradient-to-t from-black/80 to-transparent" />
                     {resolvedLogo && overlay("logo", <img src={resolvedLogo} alt="Brand logo" className="h-12 w-12 rounded-xl bg-white/90 object-contain p-1 shadow-lg sm:h-16 sm:w-16" />)}
-                    {overlay("text", <span className="block max-w-[280px] rounded-lg bg-black/35 px-3 py-2 text-center text-base font-extrabold leading-tight text-white [text-shadow:0_2px_5px_#000] sm:text-xl">{scene.text || content.hook || content.title}</span>)}
+                    {overlay("text", <span style={{ fontFamily: '"Nirmala UI", "Noto Sans Devanagari", Mangal, sans-serif', wordBreak: "normal", overflowWrap: "break-word" }} className="block whitespace-pre-wrap rounded-lg bg-black/50 px-3 py-2 text-center text-base font-bold leading-relaxed text-white [text-shadow:0_2px_5px_#000] sm:text-lg">{scene.text || content.hook || content.title}</span>)}
                     {resolvedUsername && overlay("username", <span className="whitespace-nowrap rounded-lg bg-black/60 px-3 py-1.5 text-xs font-semibold text-white shadow">{resolvedUsername}</span>)}
                 </div>
 

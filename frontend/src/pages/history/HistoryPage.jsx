@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, History, LoaderCircle, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { getAllContents } from "../../api/content";
+import { deleteContent, getAllContents } from "../../api/content";
+import DeleteButton from "../../components/DeleteButton";
 import { useProject } from "../../context/ProjectContext";
 import PreviewPanel from "../ai/PreviewPanel";
 
@@ -67,7 +68,7 @@ export default function HistoryPage() {
           <div className="flex items-center gap-2"><button type="button" onClick={() => setExpandedId(expanded ? null : content.id)} className="flex flex-1 items-center justify-between gap-4 p-5 text-left">
             <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-900">{content.title}</h2><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{content.content_type}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{content.platform}</span></div><p className="mt-2 text-sm text-slate-500">{content.project_title || `Project ${content.project_id}`} · {new Date(content.created_at).toLocaleString()} · {(content.scenes || []).length} scene{content.scenes?.length === 1 ? "" : "s"}</p></div>
             {expanded ? <ChevronUp /> : <ChevronDown />}
-          </button><Link to={`/content/${content.id}/edit`} className="mr-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">Edit</Link></div>
+          </button><div className="mr-4 flex flex-wrap items-center gap-2"><Link to={`/content/${content.id}/edit`} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">Edit</Link><DeleteButton label={content.title || `content ${content.id}`} description="This deletes the content and its associated scenes, voice records, and image records." onDelete={() => deleteContent(content.id)} onDeleted={() => { setContents((items) => items.filter((item) => item.id !== content.id)); setExpandedId((id) => id === content.id ? null : id); }} /></div></div>
           {expanded && <div className="border-t border-slate-200 bg-slate-50 p-4"><PreviewPanel data={{ success: true, content_id: content.id, data: content }} username={content.branding?.username} logo={content.branding?.logo} /></div>}
         </article>;
       })}</div>}
