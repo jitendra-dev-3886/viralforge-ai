@@ -31,7 +31,7 @@ class CerebrasClient:
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.7,
-                    max_tokens=int(os.getenv("CEREBRAS_MAX_TOKENS", "1200")),
+                    max_tokens=max(3000, int(os.getenv("CEREBRAS_MAX_TOKENS", "4096"))),
                 )
                 self.last_model = model
                 return response.choices[0].message.content

@@ -1,3 +1,4 @@
+import UserProviderSelector from "../settings/UserProviderSelector";
 import { useContext, useEffect, useMemo, useState } from "react";
 
 import { generateContent } from "../../api/ai";
@@ -10,6 +11,9 @@ import PreviewPanel from "./PreviewPanel";
 import PlatformSelector from "./PlatformSelector";
 import ContentTypeSelector from "./ContentTypeSelector";
 import SummaryPanel from "./SummaryPanel";
+import VisualStyleSelector from "./VisualStyleSelector";
+import { getVisualStyle } from "./visualStyles";
+import { assetUrl } from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
 import { useBrand } from "../../context/BrandContext";
 
@@ -23,6 +27,7 @@ export default function AIStudio() {
     const [quoteLanguage, setQuoteLanguage] = useState("Hindi");
     const [generationOptions, setGenerationOptions] = useState({ language: "Hindi", scene_count: 7, total_duration: 30, style: "Educational" });
     const [selectedProvider, setSelectedProvider] = useState("auto");
+    const [visualStyle, setVisualStyle] = useState("minimal");
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -152,6 +157,7 @@ export default function AIStudio() {
                 total_duration: selectedPackage === "reel" ? generationOptions.total_duration : undefined,
                 style: ["reel","carousel","story"].includes(selectedPackage) ? generationOptions.style : undefined,
                 provider: selectedProvider,
+                visual_style: visualStyle,
             };
 
             const response = await generateContent(payload);
@@ -311,29 +317,13 @@ export default function AIStudio() {
             />
 
             <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
-                <h2 className="text-xl font-bold">Provider</h2>
-                <p className="text-slate-500 mt-2 mb-4">
-                    Select the AI provider or fallback strategy.
-                </p>
-                <select
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm"
-                    value={selectedProvider}
-                    onChange={(event) => setSelectedProvider(event.target.value)}
-                >
-                    <option value="auto">
-                        Auto (Groq → LocalAI → llama_cpp)
-                    </option>
-                    <option value="gemini">Gemini only</option>
-                    <option value="groq">Groq only</option>
-                    <option value="localai">LocalAI only</option>
-                    <option value="llama_cpp">Local llama_cpp only</option>
-                </select>
-                <p className="text-xs text-slate-500 mt-3">
-                    Auto uses configured cloud providers. Select LocalAI or llama_cpp only after configuring those local services.
-                </p>
+                <UserProviderSelector value={selectedProvider} onChange={setSelectedProvider} disabled={loading} />
             </div>
 
+            <VisualStyleSelector value={visualStyle} onChange={setVisualStyle} topic={selectedTopic} brandName={selectedBrand?.name || ""} logo={assetUrl(selectedBrand?.logo)} disabled={loading} />
+
             <SummaryPanel
+                visualStyle={getVisualStyle(visualStyle)?.name}
                 platforms={selectedPlatforms}
                 contents={selectedContent}
                 niche={selectedNiche}
@@ -349,6 +339,7 @@ export default function AIStudio() {
             <PreviewPanel
                 data={generatedContent}
                 username={overlayUsername}
+                brandName={branding.brand_name || selectedBrand?.name || ""}
                 logo={overlayLogo}
                 projectId={selectedProjectId}
             />

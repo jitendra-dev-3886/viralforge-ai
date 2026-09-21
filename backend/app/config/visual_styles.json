@@ -1,0 +1,445 @@
+[
+  {
+    "id": "minimal",
+    "name": "TV Series / Opening Title",
+    "description": "Large ivory serif title with fine open-corner accents, a top-left logo and a bottom-right brand name.",
+    "background": "#e9e5dc",
+    "panel": "#fffdf5",
+    "ink": "#172b25",
+    "accent": "#b9d8b5",
+    "textY": 70,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 50,
+        "y": 70
+      },
+      "logo": {
+        "x": 12,
+        "y": 12
+      },
+      "username": {
+        "x": 74,
+        "y": 86
+      }
+    },
+    "text": {
+      "mode": "caption",
+      "font": "serif",
+      "size": 0.069,
+      "width": 0.8,
+      "align": "center",
+      "background": "#10182055",
+      "color": "#fff4df",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "titleCorners",
+      "lineHeight": 1.18
+    },
+    "username": {
+      "mode": "caption",
+      "font": "serif",
+      "size": 0.023,
+      "width": 0.4,
+      "align": "left",
+      "background": "#10182025",
+      "color": "#fff8e8",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "signature",
+      "source": "brand_name"
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95
+    },
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "mediaFocusY": 0.5,
+    "gradient": false,
+    "brandingLabel": "TV Series"
+  },
+  {
+    "id": "bold",
+    "name": "News / Headline",
+    "description": "Strong left-aligned uppercase headline with a compact broadcast accent bar.",
+    "background": "#231c38",
+    "panel": "#f5ff63",
+    "ink": "#181324",
+    "accent": "#dfff55",
+    "textY": 58,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 50,
+        "y": 58
+      },
+      "logo": {
+        "x": 84,
+        "y": 12
+      },
+      "username": {
+        "x": 30,
+        "y": 84
+      }
+    },
+    "text": {
+      "mode": "caption",
+      "font": "condensed",
+      "size": 0.073,
+      "width": 0.78,
+      "align": "left",
+      "background": "#11182099",
+      "color": "#ffffff",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": true,
+      "opacity": 1,
+      "decoration": "bulletin",
+      "lineHeight": 1.12
+    },
+    "username": {
+      "mode": "caption",
+      "font": "sans",
+      "size": 0.024,
+      "width": 0.42,
+      "align": "left",
+      "background": "#11182080",
+      "color": "#f5ff87",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "rail"
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95
+    },
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "gradient": false,
+    "mediaFocusY": 0.5,
+    "brandingLabel": "News Bulletin"
+  },
+  {
+    "id": "cinematic",
+    "name": "Web Series / Cinema",
+    "description": "Spacious warm cinematic title with a centered diamond divider and quiet creator credits. No logo.",
+    "background": "#1b202a",
+    "panel": "#11151fe6",
+    "ink": "#fff3d7",
+    "accent": "#ddbd79",
+    "textY": 73,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 50,
+        "y": 73
+      },
+      "logo": {
+        "x": 15,
+        "y": 12
+      },
+      "username": {
+        "x": 50,
+        "y": 87
+      }
+    },
+    "text": {
+      "mode": "caption",
+      "font": "serif",
+      "size": 0.068,
+      "width": 0.8,
+      "align": "center",
+      "background": "#11151f55",
+      "color": "#fff1cf",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "diamond",
+      "lineHeight": 1.24
+    },
+    "username": {
+      "mode": "caption",
+      "font": "mono",
+      "size": 0.019,
+      "width": 0.48,
+      "align": "center",
+      "background": "#11151f25",
+      "color": "#fff1cf",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "cinema"
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95,
+      "visible": false
+    },
+    "gradient": false,
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "mediaFocusY": 0.5,
+    "brandingLabel": "Web Series"
+  },
+  {
+    "id": "professional",
+    "name": "Documentary / Story",
+    "description": "Sentence-case storytelling captions on separate translucent lines with a slim accent. A separate brand name sits below the captions at the lower left.",
+    "background": "#dce6ee",
+    "panel": "#122b48",
+    "ink": "#ffffff",
+    "accent": "#5bd8ff",
+    "textY": 70,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 44,
+        "y": 70
+      },
+      "logo": {
+        "x": 13,
+        "y": 12
+      },
+      "username": {
+        "x": 29,
+        "y": 84
+      }
+    },
+    "text": {
+      "mode": "strips",
+      "font": "sans",
+      "size": 0.053,
+      "width": 0.75,
+      "align": "left",
+      "background": "#102b4880",
+      "color": "#f2faff",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "highlight",
+      "lineHeight": 1.25
+    },
+    "username": {
+      "mode": "caption",
+      "font": "sans",
+      "size": 0.022,
+      "width": 0.4,
+      "align": "left",
+      "background": "#102b4835",
+      "color": "#f2faff",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "signature",
+      "source": "brand_name"
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95
+    },
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "gradient": false,
+    "mediaFocusY": 0.5,
+    "brandingLabel": "Documentary"
+  },
+  {
+    "id": "playful",
+    "name": "Entertainment / Pop",
+    "description": "Large rounded hook text on tilted compact highlight strips. No logo or username.",
+    "background": "#ffded7",
+    "panel": "#702860",
+    "ink": "#ffffff",
+    "accent": "#ffcf55",
+    "textY": 62,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 50,
+        "y": 62
+      },
+      "logo": {
+        "x": 13,
+        "y": 13
+      },
+      "username": {
+        "x": 38,
+        "y": 13
+      }
+    },
+    "text": {
+      "mode": "strips",
+      "font": "rounded",
+      "size": 0.067,
+      "width": 0.76,
+      "align": "center",
+      "background": "#411b4685",
+      "color": "#ffe5df",
+      "rotation": -2,
+      "radius": 0.018,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "highlight",
+      "lineHeight": 1.18
+    },
+    "username": {
+      "mode": "caption",
+      "font": "rounded",
+      "size": 0.024,
+      "width": 0.38,
+      "align": "left",
+      "background": "#411b4645",
+      "color": "#ffe5df",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "signature",
+      "visible": false
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95,
+      "visible": false
+    },
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "gradient": false,
+    "mediaFocusY": 0.5,
+    "brandingLabel": "Text only"
+  },
+  {
+    "id": "scrapbook",
+    "name": "Journal / Dispatch",
+    "description": "Typewriter story text with field-note corner ticks and a dashed baseline.",
+    "background": "#e5d9bc",
+    "panel": "#fff7df",
+    "ink": "#342e26",
+    "accent": "#f5d66f",
+    "textY": 66,
+    "shapes": [],
+    "layout": {
+      "text": {
+        "x": 47,
+        "y": 66
+      },
+      "logo": {
+        "x": 84,
+        "y": 12
+      },
+      "username": {
+        "x": 30,
+        "y": 84
+      }
+    },
+    "text": {
+      "mode": "caption",
+      "font": "mono",
+      "size": 0.052,
+      "width": 0.74,
+      "align": "left",
+      "background": "#30291f70",
+      "color": "#ffecc2",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "notes",
+      "lineHeight": 1.35
+    },
+    "username": {
+      "mode": "caption",
+      "font": "mono",
+      "size": 0.021,
+      "width": 0.4,
+      "align": "left",
+      "background": "#30291f35",
+      "color": "#ffecc2",
+      "rotation": 0,
+      "radius": 0.004,
+      "uppercase": false,
+      "opacity": 1,
+      "decoration": "notes"
+    },
+    "logo": {
+      "shape": "transparent",
+      "size": 0.075,
+      "background": "#00000000",
+      "border": "#00000000",
+      "borderWidth": 0,
+      "rotation": 0,
+      "opacity": 0.95
+    },
+    "circles": [],
+    "mediaRect": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "gradient": false,
+    "mediaFocusY": 0.5,
+    "brandingLabel": "Dispatch / Journal"
+  }
+]

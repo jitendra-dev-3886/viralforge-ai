@@ -4,6 +4,7 @@ export default function SummaryPanel({
     niche,
     topic,
     packageType,
+    visualStyle,
 }) {
 
     return (
@@ -19,6 +20,7 @@ export default function SummaryPanel({
             </p>
 
             <div className="grid md:grid-cols-2 gap-8 mt-8">
+                <div><h3 className="font-semibold mb-3">Visual style</h3><div>{visualStyle || "Default"}</div></div>
 
                 <div>
 

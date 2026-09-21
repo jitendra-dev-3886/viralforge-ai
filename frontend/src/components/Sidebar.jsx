@@ -1,6 +1,7 @@
 import {
     LayoutDashboard,
     Sparkles,
+    Workflow,
     FolderKanban,
     BadgeCheck,
     Image,
@@ -27,6 +28,7 @@ import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 const menus = [
+    { name: "Plans & usage", icon: BadgeCheck, path: "/billing" },
 
     {
         name: "Dashboard",
@@ -39,6 +41,7 @@ const menus = [
         icon: Sparkles,
         path: "/ai-studio",
     },
+    { name: "Creation Workspace", icon: Workflow, path: "/creation-workspace" },
 
     {
         name: "Brands",

@@ -20,8 +20,9 @@ class GeminiClient:
         logger.info("Calling Gemini")
 
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             contents=prompt,
+            config={"response_mime_type": "application/json", "max_output_tokens": int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))},
         )
 
         logger.info("Gemini response received")

@@ -37,8 +37,10 @@ import { ProjectProvider } from "./context/ProjectContext";
 import { NicheProvider } from "./context/NicheContext";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ContentEditor from "./pages/content/ContentEditor";
-import { useContext } from "react";
+import { lazy, Suspense, useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
+const BillingPage = lazy(() => import("./pages/settings/BillingPage"));
+const CreationWorkspace = lazy(() => import("./pages/workspace/CreationWorkspace"));
 
 function AdminRoute() {
     const { user } = useContext(AuthContext);
@@ -81,6 +83,8 @@ function App() {
                     <Route path="/set-password" element={<SetPassword />} />
 
                     <Route element={<AppShell />}>
+                    <Route path="/billing" element={<Suspense fallback={<p>Loading plans...</p>}><BillingPage /></Suspense>} />
+                    <Route path="/creation-workspace" element={<Suspense fallback={<p role="status" className="p-6 text-slate-500">Loading creation workspace...</p>}><CreationWorkspace /></Suspense>} />
 
                     <Route
                         path="/dashboard"

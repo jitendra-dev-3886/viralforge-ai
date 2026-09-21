@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Flame, Lightbulb, Pencil, RefreshCw } from "lucide-react";
 import { getTrending } from "../../api/trends";
 
-export default function TrendingTopics({ niche, onSelect }) {
+export default function TrendingTopics({ niche, onSelect, value, title = "5. Choose a topic" }) {
     const [activeTab, setActiveTab] = useState("trending");
     const [trendingTopics, setTrendingTopics] = useState([]);
     const [topicLimit, setTopicLimit] = useState(24);
@@ -72,6 +72,7 @@ export default function TrendingTopics({ niche, onSelect }) {
             type="button"
             key={`${topic.title}-${index}`}
             onClick={() => onSelect(topic.title)}
+            aria-pressed={value === undefined ? undefined : value === topic.title}
             className="w-full rounded-xl border border-slate-200 p-3 text-left text-sm text-slate-700 transition hover:border-blue-500 hover:bg-blue-50"
         >
             <div className="flex items-start justify-between gap-3">
@@ -88,7 +89,7 @@ export default function TrendingTopics({ niche, onSelect }) {
     return (
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-1 text-lg font-semibold text-slate-900">
-                5. Choose a topic
+                {title}
             </h2>
             <p className="mb-4 text-sm text-slate-500">
                 Choose from live niche trends, niche-specific content ideas, or write a custom brief.
@@ -204,7 +205,7 @@ export default function TrendingTopics({ niche, onSelect }) {
                 <textarea
                     rows={5}
                     placeholder="Write your own topic..."
-                    value={myTopic}
+                    value={value ?? myTopic}
                     onChange={(event) => {
                         setMyTopic(event.target.value);
                         onSelect(event.target.value);

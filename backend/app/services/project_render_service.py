@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from fastapi import HTTPException
 
 from app.models.project import Project
@@ -283,19 +284,29 @@ class ProjectRenderService:
             ),
         )
 
-        music = db.query(Media).filter(
+        audio = (scenes[0].content.generation_config or {}).get("audio")
+        music_query = db.query(Media).filter(
             Media.project_id == project_id,
             Media.user_id == user_id,
             Media.media_type == "music",
             Media.status == "ready",
-        ).order_by(Media.created_at.desc(), Media.id.desc()).first()
+        )
+        if audio is not None:
+            music = music_query.filter(Media.id == audio.get("music_id")).first() if audio.get("music_id") else None
+            if audio.get("music_id") and not music:
+                raise HTTPException(status_code=422, detail="Selected music is unavailable. Choose another track in Audio.")
+        else:
+            music = music_query.filter(or_(Media.provider != "workspace_upload", Media.provider.is_(None))).order_by(Media.created_at.desc(), Media.id.desc()).first()
         music_path = ProjectRenderService._media_path(music.file_path) if music else None
+        if music and (not music_path or not music_path.is_file()):
+            raise HTTPException(status_code=422, detail="Selected music file is missing. Upload it again in Audio.")
         if music_path and music_path.exists():
             mixed_output = output_folder / f"content_{content_id}_mixed.mp4"
             FFmpegClient.add_background_music(
                 video_path=str(final_output.resolve()),
                 music_path=str(music_path.resolve()),
                 output_path=str(mixed_output.resolve()),
+                volume=(audio or {}).get("music_volume", 0.18),
             )
             os.replace(mixed_output, final_output)
 

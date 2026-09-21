@@ -4,7 +4,7 @@ import { downloadMedia } from "../../api/media";
 import ContentFinisher from "./ContentFinisher";
 import { assetUrl } from "../../api/axios";
 
-export default function PreviewPanel({ data, username = "", logo = "", projectId }) {
+export default function PreviewPanel({ data, username = "", brandName = "", logo = "", projectId }) {
     const [selectedMediaIds, setSelectedMediaIds] = useState([]);
     const [downloading, setDownloading] = useState(false);
     const [downloadError, setDownloadError] = useState("");
@@ -118,7 +118,7 @@ export default function PreviewPanel({ data, username = "", logo = "", projectId
                             className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <Download size={15} />
-                            Download
+                            Download source
                         </button>
                     )}
                 </div>
@@ -174,7 +174,7 @@ export default function PreviewPanel({ data, username = "", logo = "", projectId
                             {isCarousel ? "Carousel slides" : "Scene media"}
                         </h3>
                         <p className="mt-1 text-xs text-slate-500">
-                            Select one or more saved assets, then download them individually or as one ZIP file.
+                            These are source assets. Use Finish & export below for your styled output.
                         </p>
                     </div>
                     {mediaIds.length > 0 && (
@@ -195,7 +195,7 @@ export default function PreviewPanel({ data, username = "", logo = "", projectId
                                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <Download size={15} />
-                                Download all
+                                Download all sources
                             </button>
                         </div>
                     )}
@@ -236,6 +236,7 @@ export default function PreviewPanel({ data, username = "", logo = "", projectId
                 <ContentFinisher
                     content={content}
                     username={username}
+                    brandName={brandName}
                     logo={logo}
                     projectId={projectId || content.project_id}
                 />

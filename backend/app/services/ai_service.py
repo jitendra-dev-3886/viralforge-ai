@@ -16,13 +16,9 @@ from app.services.prompt_engine import PromptEngine
 from app.services.scene_service import SceneService
 from app.services.downloader_service import DownloaderService
 
-from app.core.gemini_client import GeminiClient
-from app.core.groq_client import groq_client
-from app.core.localai_client import localai_client
-from app.core.llama_cpp_client import llama_cpp_client
-from app.core.openrouter_client import openrouter_client
-from app.core.cerebras_client import cerebras_client
-from app.core.ollama_client import ollama_client
+from app.services.user_ai_settings import credentials_for
+from app.core.user_ai_client import generate_user_content
+
 
 
 
@@ -30,6 +26,49 @@ logger = logging.getLogger(__name__)
 
 
 class AIService:
+
+    @staticmethod
+    def _provider_failure(errors):
+        """Expose actionable categories without leaking provider credentials/bodies."""
+        if not errors:
+            return HTTPException(status_code=503, detail={"code": "ai_not_configured", "message": "No AI provider is configured. Configure a provider or select one in the Brief step."})
+        if len(errors) > 1:
+            failures = [AIService._provider_failure([item]) for item in errors]
+            return HTTPException(status_code=502, detail={
+                "code": "ai_all_providers_failed",
+                "message": "No configured provider completed generation. " + " ".join(item.detail["message"] for item in failures),
+                "providers": [item.detail for item in failures],
+            })
+        provider, error = errors[-1]
+        status = getattr(error, "status_code", None) or getattr(getattr(error, "response", None), "status_code", None)
+        message = str(error).lower()
+        if getattr(error, "access_reason", None) == "project_model_blocked":
+            code, text, http = "ai_project_model_blocked", "has this model blocked in your Groq project. A project admin must enable it at https://console.groq.com/settings/project/limits before generation can work.", 503
+        elif getattr(error, "access_reason", None) == "model_unavailable_new_users":
+            code, text, http = "ai_model_unavailable", "no longer offers this model to new users. Select a current text model in Settings > My AI providers and test it before generating.", 503
+        elif getattr(error, "credential_role", None) == "management":
+            code, text, http = "ai_wrong_key_type", "uses a management/provisioning key, which cannot generate content. Create a regular API key at https://openrouter.ai/settings/keys, save it in Settings > My AI providers, then test again.", 503
+        elif status == 429 or any(word in message for word in ("429", "quota", "rate limit", "resource_exhausted")):
+            code, text, http = "ai_rate_limit", "has reached its rate or usage limit. Wait and retry, or select another configured provider.", 429
+        elif status == 403:
+            code, text, http = "ai_access_denied", "denied this request (HTTP 403). Check model permissions, account or region restrictions, and provider access policies. This does not necessarily mean your key is invalid.", 503
+        elif status == 402:
+            code, text, http = "ai_credits_required", "requires credits or billing access (HTTP 402). Check your provider balance and selected model.", 503
+        elif status == 401 or any(word in message for word in ("api key", "api_key", "unauthorized", "authentication")):
+            code, text, http = "ai_credentials", "rejected authentication. In Settings > My AI providers, replace its key with an API key issued by this provider, save, then test again.", 503
+        elif status in (400, 422):
+            code, text, http = "ai_request_rejected", "rejected the model or request options. Check the exact model ID and whether it supports chat completions with JSON output.", 502
+        elif status == 404 or any(word in message for word in ("model_not_found", "model not found", "decommissioned", "does not exist")):
+            code, text, http = "ai_model_unavailable", "could not access its configured model. Check the model name and account access.", 503
+        elif any(word in message for word in ("timeout", "timed out", "connection", "connect", "unreachable")):
+            code, text, http = "ai_unavailable", "could not be reached. Check the connection or choose another configured provider.", 503
+            if provider == "ollama":
+                text = "could not be reached. Start Ollama on the backend machine and check OLLAMA_URL, or select a configured cloud provider in Brief."
+        elif isinstance(error, ValueError):
+            code, text, http = "ai_invalid_response", "returned invalid or incomplete JSON after an automatic retry. Try fewer scenes or another configured provider.", 502
+        else:
+            code, text, http = "ai_provider_failed", "could not complete generation. Try another configured provider or check the backend provider logs.", 502
+        return HTTPException(status_code=http, detail={"code": code, "message": f"{provider}: {text}", "provider_status": status})
 
     @staticmethod
     def _parse_json_response(ai_text: str) -> dict:
@@ -69,7 +108,8 @@ class AIService:
 
             # Accept an otherwise-valid JSON object preceded or followed by a
             # short model explanation, without attempting unsafe JSON repair.
-            for start in (match.start() for match in re.finditer(r"\{", candidate)):
+            start = candidate.find("{")
+            if start >= 0:
                 try:
                     parsed, _ = decoder.raw_decode(candidate[start:])
                     if isinstance(parsed, dict):
@@ -78,6 +118,24 @@ class AIService:
                     continue
 
         raise ValueError("No valid JSON object found in AI response")
+
+    @staticmethod
+    def _generate_validated_response(provider, request, prompt, credentials=None):
+        for attempt in range(2):
+            try:
+                text, model = AIService._generate_from_provider(provider, prompt if attempt == 0 else PromptEngine.build_json_retry(request), **({"credentials": credentials} if credentials is not None else {}))
+                data = AIService._parse_json_response(text)
+                candidates = [data]
+                for value in data.values():
+                    if isinstance(value, dict):
+                        candidates.extend(item for item in value.values() if isinstance(item, dict))
+                if not any(any(isinstance(item.get(field), str) and item[field].strip() for field in ("title", "script", "caption", "description")) for item in candidates):
+                    raise ValueError("Response contains no usable content")
+                return text, model, data
+            except ValueError:
+                if attempt:
+                    raise
+                logger.warning("Provider %s returned unusable content; retrying once", provider)
 
     @staticmethod
     def _requested_outputs(request: GenerateRequest) -> list[dict[str, str]]:
@@ -124,35 +182,10 @@ class AIService:
         return "video" if fallback == "video" else "image"
 
     @staticmethod
-    def _generate_from_provider(provider: str, prompt: str) -> tuple[str, str]:
-        """Generate one response, preferring provider JSON mode when available."""
-        if provider == "gemini":
-            return GeminiClient.generate(prompt), "gemini-2.5-flash"
-        if provider == "groq":
-            return (
-                groq_client.generate(prompt, json_mode=True),
-                getattr(groq_client, "last_model", os.getenv("GROQ_MODEL", "groq-model")),
-            )
-        if provider == "cerebras":
-            return (
-                cerebras_client.generate(prompt),
-                getattr(cerebras_client, "last_model", os.getenv("CEREBRAS_MODEL", "cerebras-model")),
-            )
-        if provider == "openrouter":
-            return (
-                openrouter_client.generate(prompt),
-                os.getenv("OPENROUTER_MODEL", "openai/gpt-4o"),
-            )
-        if provider == "ollama":
-            return ollama_client.generate(prompt), os.getenv("OLLAMA_MODEL", "qwen3:4b")
-        if provider == "localai":
-            return localai_client.generate(prompt), os.getenv("LOCALAI_MODEL", "local-model")
-        if provider in ("llama_cpp", "llamacpp"):
-            return (
-                llama_cpp_client.generate(prompt),
-                os.getenv("LLAMA_CPP_MODEL_PATH", "local-llama-cpp"),
-            )
-        raise ValueError(f"Unsupported provider: {provider}")
+    def _generate_from_provider(provider: str, prompt: str, credentials=None) -> tuple[str, str]:
+        if credentials is None:
+            raise ValueError("User API credentials are required")
+        return generate_user_content(provider, prompt, credentials)
 
     @staticmethod
     def generate(
@@ -241,34 +274,14 @@ class AIService:
             # Select AI Provider(s) in priority order
             # =====================================================
 
-            # Build providers priority list: explicit request.providers > request.provider (or auto).
-            # Local providers are only attempted in auto mode when explicitly
-            # configured, avoiding misleading connection/model errors.
-            if request.providers:
-                providers_list = [str(p).lower() for p in request.providers if p]
-            else:
-                reqp = (request.provider or "auto").lower()
-                if reqp == "auto":
-                    providers_list = []
-                    if os.getenv("GEMINI_API_KEY"):
-                        providers_list.append("gemini")
-                    if os.getenv("GROQ_API_KEY"):
-                        providers_list.append("groq")
-
-                    if os.getenv("CEREBRAS_API_KEY"):
-                        providers_list.append("cerebras")
-
-                    if os.getenv("OPENROUTER_API_KEY"):
-                        providers_list.append("openrouter")
-                        
-                    if os.getenv("LOCALAI_URL"):
-                        providers_list.append("localai")
-                    if os.getenv("LLAMA_CPP_MODEL_PATH"):
-                        providers_list.append("llama_cpp")
-                    if os.getenv("OLLAMA_URL"):
-                        providers_list.append("ollama")
-                else:
-                    providers_list = [reqp]
+            requested = [str(p).lower() for p in request.providers if p] if request.providers else None
+            if not requested and (request.provider or "auto").lower() != "auto":
+                requested = [(request.provider or "auto").lower()]
+            user_credentials = credentials_for(db, user_id, requested)
+            providers_list = requested or list(user_credentials)
+            from app.services.billing_service import require_plan
+            require_plan(db, user_id)
+            db.commit()
 
             ai_text = None
             ai_data = None
@@ -278,80 +291,22 @@ class AIService:
 
             for p in providers_list:
                 try:
-                    if p == "gemini":
-                        ai_text = GeminiClient.generate(prompt)
-                        model = "gemini-2.5-flash"
-
-                    elif p == "groq":
-                        ai_text = groq_client.generate(prompt, json_mode=True)
-                        model = getattr(groq_client, "last_model", os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b"))
-
-                    elif p == "cerebras":
-                            ai_text = cerebras_client.generate(prompt)
-                            model = getattr(cerebras_client, "last_model", os.getenv("CEREBRAS_MODEL", "gpt-oss-120b"))
-
-                    elif p == "openrouter":
-                        ai_text = openrouter_client.generate(prompt)
-                        model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
-
-                    elif p == "ollama":
-                        
-                            ai_text = ollama_client.generate(prompt)
-
-                            model = os.getenv(
-                                "OLLAMA_MODEL",
-                                "qwen3:4b"
-                            )
-
-                    elif p == "localai":
-                        ai_text = localai_client.generate(prompt)
-                        model = os.getenv("LOCALAI_MODEL", "local-model")
-                        
-                    elif p == "ollama":
-                        ai_text = ollama_client.generate(prompt)
-                        model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
-
-                    elif p in ("llama_cpp", "llamacpp"):
-                        ai_text = llama_cpp_client.generate(prompt)
-                        model = os.getenv("LLAMA_CPP_MODEL_PATH", "local-llama-cpp")
-
-                    else:
-                        raise Exception(f"Unsupported provider: {p}")
-
-                    try:
-                        ai_data = AIService._parse_json_response(ai_text)
-                    except ValueError as parse_error:
-                        logger.warning(
-                            "Provider %s returned malformed JSON; retrying once: %s",
-                            p,
-                            parse_error,
-                        )
-                        ai_text, model = AIService._generate_from_provider(
-                            p,
-                            PromptEngine.build_json_retry(request),
-                        )
-                        ai_data = AIService._parse_json_response(ai_text)
+                    ai_text, model, ai_data = AIService._generate_validated_response(p, request, prompt, credentials=user_credentials[p])
 
                     used_provider = p
                     provider = p
                     break
 
                 except Exception as e:
-                    logger.warning(f"Provider {p} failed: {e}")
-                    errors.append(f"{p}: {str(e)}")
+                    logger.warning("Provider %s failed (%s)", p, type(e).__name__)
+                    errors.append((p, e))
+                    ai_data = None
                     continue
 
             if not ai_text or ai_data is None:
-                logger.error(f"All providers failed: {errors}")
-                raise HTTPException(
-                    status_code=502,
-                    detail={
-                        "code": "ai_invalid_response",
-                        "message": (
-                            "The AI provider returned an incomplete response. Please generate again."
-                        ),
-                    },
-                )
+                logger.error("All user-configured providers failed: %s", providers_list)
+                raise AIService._provider_failure(errors)
+
 
             logger.info("AI Response Received")
 
@@ -668,6 +623,7 @@ class AIService:
                     "scene_count": request.scene_count,
                     "total_duration": request.total_duration,
                     "style": request.style,
+                    "visual_style": request.visual_style,
                     "description": (output_data or ai_data).get("description", ""),
                     "story": (output_data or ai_data).get("story", ""),
                     "branding": {
@@ -786,6 +742,7 @@ class AIService:
 
                     "scenes": [
                         {
+                            "id": next((scene.id for scene in scenes_result.get("scenes", []) if scene.scene_number == (item.get("scene_number") or item.get("scene"))), None),
                             "scene": item.get("scene_number") or item.get("scene"),
                             "title": item.get("title"),
                             "text": item.get("text"),

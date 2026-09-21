@@ -1,4 +1,5 @@
 from app.config.prompt_config import SYSTEM_PROMPT
+from app.core.visual_style import get_style
 
 
 class PromptEngine:
@@ -25,6 +26,8 @@ class PromptEngine:
         scene_duration = max(2, round(total_duration / scene_count))
 
         quote_rules = ""
+        visual = get_style(data.visual_style)
+        visual_direction = f'{visual["name"]}: {visual["description"]}' if visual else "Default"
         if is_quote:
             quote_rules = (
                 f"QUOTE RULES: Generate exactly one original two-line {data.language} quote. "
@@ -43,6 +46,7 @@ Topic: {data.topic}
 Package: {data.package}
 Language: {data.language}
 Style or tone: {data.style or "Engaging"}
+Visual presentation: {visual_direction}. Keep overlay copy concise for this design. Do not put design instructions in stock-media search phrases.
 Target total duration: {total_duration} seconds
 
 Return ONLY one valid JSON object. Do not use Markdown, comments, code fences, or text before or after the JSON. Use normal JSON double quotes. Never include an unescaped double quote inside a string.
@@ -76,5 +80,8 @@ Set every scene media_type to "{media_type}". Do not create any other platform o
         return (
             PromptEngine.build(data)
             + "\n\nYour previous response could not be parsed. Generate a fresh, shorter response. "
-            "It must start with {, end with }, and be valid JSON."
+            "It must start with {, end with }, and be valid JSON. Keep exactly the requested scene count. "
+            "Use at most 8 words per scene text and 3 words per search phrase. "
+            "Keep description, caption and story to one sentence each, script under 60 words, "
+            "and use at most 3 hashtags and 3 SEO keywords. Finish the entire JSON object."
         )

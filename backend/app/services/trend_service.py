@@ -188,21 +188,6 @@ class TrendService:
         source_titles = cls._unique_titles(source_titles)
         ranked = []
 
-        if source_titles:
-            try:
-                from app.providers.trend_ai_ranker import TrendAIRanker
-
-                ranked_response = TrendAIRanker.rank(
-                    source_titles,
-                    niche_label=profile["label"],
-                    category=profile["category"],
-                    limit=limit,
-                )
-                if isinstance(ranked_response, list):
-                    ranked = ranked_response
-            except Exception as exc:
-                print(f"Trend ranking unavailable: {exc}")
-
         live_titles = cls._unique_titles(ranked or source_titles)
         topics = [
             {

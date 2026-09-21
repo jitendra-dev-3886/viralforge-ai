@@ -36,6 +36,9 @@ class BrandService:
                 "message": "Brand already exists.",
             }
 
+        from app.services.billing_service import check_brand_limit
+        check_brand_limit(db, user_id)
+
         brand = Brand(
             user_id=user_id,
             name=request.name,

@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,7 @@ class GenerateRequest(BaseModel):
 
     language: Optional[str] = "English"
 
-    provider: Optional[str] = "groq"
+    provider: Optional[str] = "auto"
     providers: Optional[List[str]] = None
 
     outputs: Optional[List[str]] = None
@@ -31,6 +31,7 @@ class GenerateRequest(BaseModel):
     scene_count: Optional[int] = Field(None, ge=1, le=12)
     total_duration: Optional[int] = Field(None, ge=5, le=180)
     style: Optional[str] = Field(None, max_length=50)
+    visual_style: Optional[Literal["minimal", "bold", "cinematic", "professional", "playful", "scrapbook"]] = None
 
 
 # ==========================================================

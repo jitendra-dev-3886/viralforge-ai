@@ -9,7 +9,8 @@ from passlib.context import CryptContext
 # JWT Configuration
 # ==========================================
 
-SECRET_KEY = "viralforge-ai-secret-key-change-in-production"
+from app.core.private_secrets import private_secret
+SECRET_KEY = private_secret("jwt.key", "JWT_SECRET_KEY").decode()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 Days
 

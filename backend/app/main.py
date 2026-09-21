@@ -3,10 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.database import Base, engine
+from app.database import Base, engine, SessionLocal
+from app.services.billing_service import seed_plans
+from app.api.billing import router as billing_router
 
 from app.api.auth import router as auth_router
 from app.api.ai import router as ai_router
+from app.api.ai_settings import router as ai_settings_router
 from app.api.trends import router as trend_router
 from app.api.project import router as project_router
 from app.api.brand import router as brand_router
@@ -32,6 +35,8 @@ from app import models
 # ==========================================================
 
 Base.metadata.create_all(bind=engine)
+with SessionLocal() as billing_db:
+    seed_plans(billing_db)
 
 
 # ==========================================================
@@ -74,6 +79,8 @@ app.add_middleware(
 app.include_router(auth_router)
 
 app.include_router(ai_router)
+app.include_router(ai_settings_router)
+app.include_router(billing_router)
 
 app.include_router(trend_router)
 

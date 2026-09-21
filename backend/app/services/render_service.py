@@ -11,6 +11,7 @@ from app.models.voice import Voice
 
 from app.core.ffmpeg_client import FFmpegClient
 from app.core.subtitle_burner import SubtitleBurner
+from app.core.visual_style import resolve_layout
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -35,6 +36,7 @@ class RenderService:
         db: Session,
         scene_id: int,
         user_id: int,
+        as_image: bool = False,
     ):
 
         # =====================================================
@@ -74,6 +76,9 @@ class RenderService:
                 detail="Scene image or video media was not found. Regenerate the missing scene media and try again."
             )
 
+        if as_image and source_media.media_type != "image":
+            raise HTTPException(status_code=422, detail="Image export requires an image scene.")
+
         # =====================================================
         # Get Audio
         # =====================================================
@@ -101,7 +106,8 @@ class RenderService:
             exist_ok=True,
         )
 
-        filename = f"content_{scene.content_id}_scene_{scene.scene_number}_final.mp4"
+        extension = ".png" if as_image else ".mp4"
+        filename = f"content_{scene.content_id}_scene_{scene.scene_number}_final{extension}"
 
         output_path = render_folder / filename
 
@@ -113,6 +119,8 @@ class RenderService:
         abs_video_path = str(source_path) if source_path else ""
         if not source_path or not source_path.exists():
             raise HTTPException(status_code=404, detail="The saved scene media file is missing from storage.")
+        if as_image or (scene.content.generation_config or {}).get("audio", {}).get("voice_enabled") is False:
+            voice = None
         voice_path = _stored_path(voice.audio_path) if voice else None
         if voice and (not voice_path or not voice_path.is_file()):
             raise HTTPException(status_code=422, detail=f"Scene {scene.scene_number}'s voice file is missing. Generate its voice again before merging.")
@@ -135,12 +143,15 @@ class RenderService:
             output_width, output_height = 1080, 1080
 
         generation_config = scene.content.generation_config or {}
+        visual_style = generation_config.get("visual_style")
         branding = generation_config.get("branding", {})
-        overlay_layout = generation_config.get("overlay_layout", {})
+        overlay_layout = resolve_layout(visual_style, generation_config)
         text_position = overlay_layout.get("text", {})
         logo_position = overlay_layout.get("logo", {})
         username_position = overlay_layout.get("username", {})
-        username = branding.get("username") or branding.get("brand_name") or ""
+        username = branding.get("platform_usernames", {}).get(platform, branding.get("username") or branding.get("brand_name") or "")
+        if visual_style in ("minimal", "professional"):
+            username = branding.get("brand_name") or ""
         overlay_text = str(scene.text or "").strip()
         logo_path = None
         logo_url = branding.get("logo")
@@ -179,14 +190,18 @@ class RenderService:
             height=output_height,
             overlay_text=overlay_text,
             username=username,
+            platform=platform,
             logo_path=logo_path,
-            text_x_pct=text_position.get("x", 50),
-            text_y_pct=text_position.get("y", 68),
-            logo_x_pct=logo_position.get("x", 10),
-            logo_y_pct=logo_position.get("y", 8),
-            username_x_pct=username_position.get("x", 82),
-            username_y_pct=username_position.get("y", 92),
+            text_x_pct=text_position.get("x"),
+            text_y_pct=text_position.get("y"),
+            logo_x_pct=logo_position.get("x"),
+            logo_y_pct=logo_position.get("y"),
+            username_x_pct=username_position.get("x"),
+            username_y_pct=username_position.get("y"),
             transition=scene.transition or "fade",
+            visual_style=visual_style,
+            overlay_opacity=generation_config.get("overlay_opacity"),
+            as_image=as_image,
         )
 
         # =====================================================
@@ -196,15 +211,15 @@ class RenderService:
         media = Media(
             user_id=scene.user_id,
             project_id=scene.project_id,
-            media_type="render",
+            media_type="image" if as_image else "render",
             provider="FFmpeg",
             title=f"Content {scene.content_id} Scene {scene.scene_number} Branded Final",
             file_name=filename,
             file_path=str(output_path),
             file_url=f"/storage/projects/{scene.project_id}/render/{filename}",
-            mime_type="video/mp4",
-            extension=".mp4",
-            duration=round(render_result["duration"]),
+            mime_type="image/png" if as_image else "video/mp4",
+            extension=extension,
+            duration=None if as_image else round(render_result["duration"]),
             width=output_width,
             height=output_height,
             file_size=os.path.getsize(abs_output_path),

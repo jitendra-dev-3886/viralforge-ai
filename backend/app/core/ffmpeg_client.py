@@ -4,7 +4,9 @@ import subprocess
 import re
 from pathlib import Path
 
-from app.core.text_overlay import render_caption
+from app.core.text_overlay import render_caption, render_logo
+from app.core.platform_branding import render_platform_username
+from app.core.visual_style import get_style, render_style_frame, default_layout
 
 
 class FFmpegClient:
@@ -37,8 +39,9 @@ class FFmpegClient:
             return False
 
     @staticmethod
-    def add_background_music(video_path: str, music_path: str, output_path: str):
+    def add_background_music(video_path: str, music_path: str, output_path: str, volume: float = 0.18):
         """Mix looping background music under narration, or add it to silent video."""
+        volume = max(0.0, min(1.0, float(volume)))
         ffmpeg = FFmpegClient.check_ffmpeg()
         ffprobe = shutil.which("ffprobe")
         has_audio = False
@@ -54,11 +57,11 @@ class FFmpegClient:
         command = [ffmpeg, "-y", "-i", video_path, "-stream_loop", "-1", "-i", music_path]
         if has_audio:
             command += [
-                "-filter_complex", "[1:a]volume=0.18[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95:level=0[a]",
+                "-filter_complex", f"[1:a]volume={volume}[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95:level=0[a]",
                 "-map", "0:v:0", "-map", "[a]",
             ]
         else:
-            command += ["-filter:a", "volume=0.18", "-map", "0:v:0", "-map", "1:a:0", "-shortest"]
+            command += ["-filter:a", f"volume={volume}", "-map", "0:v:0", "-map", "1:a:0", "-shortest"]
         command += ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output_path]
         process = subprocess.run(command, capture_output=True, text=True)
         if process.returncode != 0:
@@ -68,7 +71,7 @@ class FFmpegClient:
         return {"success": True, "output": output_path}
 
     @staticmethod
-    def render_media(video_path: str, output_path: str, duration: int = 5, audio_path: str | None = None, width: int = 1080, height: int = 1920, overlay_text: str = "", username: str = "", logo_path: str | None = None, text_x_pct: float = 50, text_y_pct: float = 68, logo_x_pct: float = 10, logo_y_pct: float = 8, username_x_pct: float = 82, username_y_pct: float = 92, transition: str = "fade"):
+    def render_media(video_path: str, output_path: str, duration: int = 5, audio_path: str | None = None, width: int = 1080, height: int = 1920, overlay_text: str = "", username: str = "", logo_path: str | None = None, text_x_pct: float | None = None, text_y_pct: float | None = None, logo_x_pct: float | None = None, logo_y_pct: float | None = None, username_x_pct: float | None = None, username_y_pct: float | None = None, transition: str = "fade", visual_style: str | None = None, as_image: bool = False, overlay_opacity: dict | None = None, platform: str | None = None):
         """Normalize an image/video scene to MP4, with optional narration."""
         ffmpeg = FFmpegClient.check_ffmpeg()
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -87,56 +90,81 @@ class FFmpegClient:
         else:
             command += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
         logo_index = 2
+        preset = get_style(visual_style)
+        if preset and preset["logo"].get("visible") is False:
+            logo_path = None
+        if preset and preset["username"].get("visible") is False:
+            username = ""
+        overlay_opacity = overlay_opacity or {}
+        styled_logo_path = Path(f"{output_path}.logo.png")
         if logo_path:
-            command += ["-i", logo_path]
+            command += ["-i", str(styled_logo_path) if preset else logo_path]
         overlay_text_path = Path(f"{output_path}.overlay.png")
         username_text_path = Path(f"{output_path}.username.png")
+        frame_path = Path(f"{output_path}.frame.png")
         try:
-            render_caption(overlay_text, overlay_text_path, width, height)
-            render_caption(username, username_text_path, width, height, size_ratio=.024)
+            render_caption(overlay_text, overlay_text_path, width, height, visual_style=visual_style, opacity=overlay_opacity.get("text"))
+            render_platform_username(username, username_text_path, width, height, platform=platform, visual_style=visual_style, opacity=overlay_opacity.get("username"))
+            render_style_frame(visual_style, frame_path, width, height)
+            if logo_path and preset:
+                render_logo(logo_path, styled_logo_path, width, visual_style, height=height, opacity=overlay_opacity.get("logo"))
         except Exception:
             overlay_text_path.unlink(missing_ok=True)
             username_text_path.unlink(missing_ok=True)
+            frame_path.unlink(missing_ok=True)
+            styled_logo_path.unlink(missing_ok=True)
             raise
         text_index = logo_index + (1 if logo_path else 0)
         username_index = text_index + 1
-        command += ["-i", str(overlay_text_path), "-i", str(username_text_path)]
+        command += ["-i", str(overlay_text_path), "-i", str(username_text_path), "-i", str(frame_path)]
         def position(value, default):
             try:
                 return max(3.0, min(97.0, float(value))) / 100
             except (TypeError, ValueError):
                 return default / 100
-        text_x, text_y = position(text_x_pct, 50), position(text_y_pct, 68)
-        logo_x, logo_y = position(logo_x_pct, 10), position(logo_y_pct, 8)
-        username_x, username_y = position(username_x_pct, 82), position(username_y_pct, 92)
-        fade_filter = f"fade=t=in:st=0:d=0.25,fade=t=out:st={max(0.3, duration - 0.35)}:d=0.35," if transition == "fade" else ""
+        defaults = default_layout(visual_style)
+        text_x, text_y = position(text_x_pct, defaults["text"]["x"]), position(text_y_pct, defaults["text"]["y"])
+        logo_x, logo_y = position(logo_x_pct, defaults["logo"]["x"]), position(logo_y_pct, defaults["logo"]["y"])
+        username_x, username_y = position(username_x_pct, defaults["username"]["x"]), position(username_y_pct, defaults["username"]["y"])
+        fade_filter = f"fade=t=in:st=0:d=0.25,fade=t=out:st={max(0.3, duration - 0.35)}:d=0.35," if transition == "fade" and not as_image else ""
+        media_x, media_y, media_w, media_h = preset["mediaRect"] if preset else (0, 0, 1, 1)
+        fit_width, fit_height = max(2, round(width * media_w / 2) * 2), max(2, round(height * media_h / 2) * 2)
+        offset_x, offset_y = round(width * media_x / 2) * 2, round(height * media_y / 2) * 2
+        background = preset["background"] if preset else "black"
+        focus_y = preset.get("mediaFocusY", .5) if preset else .5
         base_filter = (
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps=30,"
+            f"scale={fit_width}:{fit_height}:force_original_aspect_ratio=increase,crop={fit_width}:{fit_height}:(iw-ow)/2:(ih-oh)*{focus_y},"
+            f"pad={width}:{height}:{offset_x}:{offset_y}:color={background},fps=30,"
             "eq=contrast=1.035:saturation=1.08,"
             f"{fade_filter}"
-            f"drawbox=x=0:y=ih*0.56:w=iw:h=ih*0.44:color=black@0.48:t=fill"
+            + ("null" if get_style(visual_style) else "drawbox=x=0:y=ih*0.56:w=iw:h=ih*0.44:color=black@0.48:t=fill")
         )
         margin = max(4, int(width * .03))
         def caption_position(x, y):
             return f"x='max({margin},min(W-w-{margin},W*{x}-w/2))':y='max({margin},min(H-h-{margin},H*{y}-h/2))'"
         filter_arg = (
-            f"[0:v]{base_filter}[base];"
+            f"[0:v]{base_filter}[source];"
+            f"[source][{username_index + 1}:v]overlay=0:0[base];"
             f"[base][{text_index}:v]overlay={caption_position(text_x, text_y)}[captioned];"
             f"[captioned][{username_index}:v]overlay={caption_position(username_x, username_y)}[branded]"
         )
         if logo_path:
-            filter_arg += f";[{logo_index}:v]scale={max(70, int(width*.10))}:-1[logo];[branded][logo]overlay=W*{logo_x}-w/2:H*{logo_y}-h/2[v]"
+            logo_filter = "null" if preset else f"scale={max(70, int(width*.10))}:-1"
+            filter_arg += f";[{logo_index}:v]{logo_filter}[logo];[branded][logo]overlay={caption_position(logo_x, logo_y)}[v]"
         else:
             filter_arg += ";[branded]null[v]"
         command += [
             "-filter_complex", filter_arg, "-map", "[v]",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
         ]
         # Every clip needs the same audio stream layout for safe concatenation.
         # Pad short narration and extend the scene when narration is longer.
-        command += ["-map", "1:a:0", "-af", "apad", "-ar", "48000", "-ac", "2",
-                    "-c:a", "aac", "-b:a", "192k", "-t", str(max(1, duration))]
-        command += ["-movflags", "+faststart", str(temporary_output)]
+        if as_image:
+            command += ["-frames:v", "1", "-c:v", "png", "-update", "1"]
+        else:
+            command += ["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
+                        "-map", "1:a:0", "-af", "apad", "-ar", "48000", "-ac", "2",
+                        "-c:a", "aac", "-b:a", "192k", "-t", str(max(1, duration)), "-movflags", "+faststart"]
+        command += [str(temporary_output)]
         try:
             process = subprocess.run(command, capture_output=True, text=True)
             if process.returncode != 0:
@@ -147,6 +175,8 @@ class FFmpegClient:
         finally:
             overlay_text_path.unlink(missing_ok=True)
             username_text_path.unlink(missing_ok=True)
+            frame_path.unlink(missing_ok=True)
+            styled_logo_path.unlink(missing_ok=True)
             temporary_output.unlink(missing_ok=True)
         if not output.exists() or output.stat().st_size <= 0:
             raise Exception("FFmpeg completed but the scene output was not created.")

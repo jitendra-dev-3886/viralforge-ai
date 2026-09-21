@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Header, Depends, File, Form, HTTPException, UploadFile
 from pathlib import Path
 import uuid
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.security import get_current_user_id
+from app.core.render_errors import run_render
+from app.core.ffmpeg_client import FFmpegClient
 
 from app.schemas.project_render import (
     ProjectRenderRequest,
@@ -25,6 +27,7 @@ router = APIRouter(
 async def upload_background_music(
     project_id: int,
     file: UploadFile = File(...),
+    workspace: bool = Form(False),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -47,9 +50,14 @@ async def upload_background_music(
                 path.unlink(missing_ok=True)
                 raise HTTPException(status_code=413, detail="Music file must be 25 MB or smaller.")
             destination.write(chunk)
+    try:
+        FFmpegClient.audio_duration(str(path))
+    except ValueError:
+        path.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="This file has no readable audio. Upload a valid music track.")
     media = Media(
-        user_id=user_id, project_id=project_id, media_type="music", provider="upload",
-        title="Background Music", file_name=filename, file_path=str(path),
+        user_id=user_id, project_id=project_id, media_type="music", provider="workspace_upload" if workspace else "upload",
+        title=Path(file.filename or "Background Music").name[:255], file_name=filename, file_path=str(path),
         file_url=f"/storage/projects/{project_id}/music/{filename}",
         mime_type=file.content_type or "audio/mpeg", extension=extension,
         file_size=size, status="ready",
@@ -67,11 +75,13 @@ async def upload_background_music(
 @router.post("/generate")
 def generate_project_render(
     request: ProjectRenderRequest,
+    idempotency_key: str | None = Header(default=None, max_length=128),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
 
-    return ProjectRenderService.generate(
+    return run_render(ProjectRenderService.generate,
+        request_key=idempotency_key,
 
         db=db,
 
@@ -89,11 +99,13 @@ def generate_project_render(
 @router.get("/generate/{project_id}")
 def generate_project_render_by_id(
     project_id: int,
+    idempotency_key: str | None = Header(default=None, max_length=128),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
 
-    return ProjectRenderService.generate(
+    return run_render(ProjectRenderService.generate,
+        request_key=idempotency_key,
 
         db=db,
 
