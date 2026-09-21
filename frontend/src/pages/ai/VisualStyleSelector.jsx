@@ -17,7 +17,7 @@ export default function VisualStyleSelector({ value, onChange, topic, brandName,
     return <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-labelledby="visual-style-title">
         <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Choose your look</p>
         <h2 id="visual-style-title" className="mt-2 text-xl font-bold text-slate-900">Visual style</h2>
-        <p className="mt-2 text-sm text-slate-500">Full photo or video with compact translucent captions. TV Series and Documentary use your brand name; other designs use their own logo and username treatment.</p>
+        <p className="mt-2 text-sm text-slate-500">Full photo or video with compact translucent captions. Designs with branding display your brand name and logo.</p>
         <div className="mt-6 grid gap-7 lg:grid-cols-[1fr_340px]">
             <fieldset disabled={disabled} className="grid grid-cols-2 gap-3 self-start">
                 <legend className="sr-only">Select a visual style</legend>

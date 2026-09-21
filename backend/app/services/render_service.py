@@ -149,9 +149,8 @@ class RenderService:
         text_position = overlay_layout.get("text", {})
         logo_position = overlay_layout.get("logo", {})
         username_position = overlay_layout.get("username", {})
-        username = branding.get("platform_usernames", {}).get(platform, branding.get("username") or branding.get("brand_name") or "")
-        if visual_style in ("minimal", "professional"):
-            username = branding.get("brand_name") or ""
+        from app.core.brand_credit import output_brand_name
+        username = output_brand_name(scene.content)
         overlay_text = str(scene.text or "").strip()
         logo_path = None
         logo_url = branding.get("logo")

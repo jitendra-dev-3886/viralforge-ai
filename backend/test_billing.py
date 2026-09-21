@@ -16,10 +16,15 @@ from app.models.project import Project
 from app.models.content import Content
 from app.models.scene import Scene
 from app.models.subscription import Subscription
-from app.models.billing import ExportUsage, PlanGrant
+from app.models.billing import BillingPlan, ExportUsage, PlanGrant
 from app.services import billing_service as billing
 from app.api.billing import router
 from app.api.render import router as render_router
+from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router
+from app.services.auth_service import AuthService
+from app.services.oauth_service import OAuthService
+from app.schemas.auth import LoginRequest
 from app.core.security import get_current_user_id
 
 
@@ -43,6 +48,8 @@ class BillingTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(router)
         app.include_router(render_router)
+        app.include_router(admin_router)
+        app.include_router(auth_router)
         app.dependency_overrides[get_db] = lambda: self.db
         app.dependency_overrides[get_current_user_id] = lambda: self.user
         self.client = TestClient(app)
@@ -63,7 +70,7 @@ class BillingTests(unittest.TestCase):
     def test_trial_is_one_time_and_expiry_blocks_new_work(self):
         first = billing.snapshot(self.db, 1)
         self.assertEqual(first["plan"]["code"], "trial")
-        self.assertEqual(first["plan"]["video_exports"], 3)
+        self.assertIsNone(first["plan"]["video_exports"])
         self.assertFalse(first["payments_enabled"])
         self.assertEqual(first["starts_at"], billing.snapshot(self.db, 1)["starts_at"])
         sub = self.db.query(Subscription).filter_by(user_id=1).one()
@@ -76,11 +83,9 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(self.db.query(Content).filter_by(user_id=1).count(), 1)
 
     def test_trial_video_and_image_allowances_are_independent(self):
-        for index in range(3):
+        for index in range(5):
             self.completed("video", 10, f"video-{index}")
-        with self.assertRaises(HTTPException):
-            billing.reserve(self.db, 1, "video", 1, "test", "extra")
-        self.db.rollback()
+        self.assertEqual(billing.snapshot(self.db, 1)["usage"]["video_exports"], 5)
         self.completed("image", 10, "images")
         with self.assertRaises(HTTPException):
             billing.reserve(self.db, 1, "image", 1, "test", "extra-image")
@@ -91,6 +96,50 @@ class BillingTests(unittest.TestCase):
         self.db.commit()
         with self.assertRaises(HTTPException):
             billing.check_brand_limit(self.db, 1)
+
+    def test_startup_removes_existing_trial_cap(self):
+        self.db.get(BillingPlan, "trial").video_exports = 3
+        self.db.commit()
+        billing.seed_plans(self.db)
+        billing.seed_plans(self.db)
+        self.assertIsNone(billing.snapshot(self.db, 1)["plan"]["video_exports"])
+        for index in range(5):
+            self.completed("video", 10, f"existing-{index}")
+
+    @patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": ""})
+    def test_owner_can_grant_access_and_delegate_admin(self):
+        owner = self.db.get(User, 2)
+        owner.email = "ystechlab@gmail.com"
+        self.db.commit()
+        self.user = 2
+        self.assertTrue(self.client.get("/api/auth/me").json()["user"]["is_super_admin"])
+        response = self.client.put("/api/admin/users/1", json={"is_super_admin": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.user = 1
+        response = self.client.post("/api/billing/admin/users/2/grant", json={"plan": "pro", "note": "Owner access granted"})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_normal_user_cannot_change_permissions(self):
+        response = self.client.put("/api/admin/users/2", json={"is_super_admin": True})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.db.get(User, 2).is_super_admin)
+
+    @patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": ""})
+    def test_owner_password_login_promotes_only_after_authentication(self):
+        owner = self.db.get(User, 2)
+        owner.email, owner.hashed_password = "ystechlab@gmail.com", "$2test"
+        self.db.commit()
+        request = LoginRequest(email=owner.email, password="test-password")
+        with patch("app.services.auth_service.verify_password", return_value=False):
+            self.assertFalse(AuthService.login(self.db, request)["success"])
+            self.assertFalse(owner.is_super_admin)
+        with patch("app.services.auth_service.verify_password", return_value=True):
+            self.assertTrue(AuthService.login(self.db, request)["user"]["is_super_admin"])
+
+    @patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": ""})
+    def test_owner_google_login_gets_admin_access(self):
+        user, _ = OAuthService.login(self.db, "google", {"id": "owner-google", "email": "ystechlab@gmail.com", "name": "Owner", "data": {"email_verified": True}})
+        self.assertTrue(user.is_super_admin)
 
     def test_completed_request_replays_without_rendering_or_charging_again(self):
         render = Mock(return_value={"success": True, "media_id": 44})

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.content import Content
 from app.models.scene import Scene
+from app.core.brand_credit import output_brand_name
 from app.schemas.content import (
     ContentCreate,
     ContentUpdate,
@@ -28,7 +29,7 @@ class ContentService:
             "content_type": content.content_type, "language": content.language,
             "ai_provider": content.ai_provider, "ai_model": content.ai_model,
             "status": content.status, "generation_config": config,
-            "branding": config.get("branding", {}),
+            "branding": {**(config.get("branding") or {}), "brand_name": output_brand_name(content)},
             "story": config.get("story") or (content.script if "carousel" in (content.content_type or "").lower() else ""),
             "created_at": content.created_at, "updated_at": content.updated_at,
             "scenes": [{

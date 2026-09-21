@@ -8,11 +8,11 @@ import { downloadMedia } from "../../api/media";
 import { StyleFrame, StyledCaption, StyledLogo } from "./StyleArtwork";
 import { getVisualStyle, getDefaultLayout, getSavedLayout, mediaPlacement, VISUAL_STYLES } from "./visualStyles";
 
-import PlatformUsername, { platformKey } from "./PlatformUsername";
+import PlatformUsername from "./PlatformUsername";
 
 const clamp = (value) => Math.max(3, Math.min(97, value));
 
-export default function ContentFinisher({ content, username = "", brandName: projectBrandName = "", logo = "", projectId, onBusyChange, disableBackgroundMusic = false }) {
+export default function ContentFinisher({ content, brandName: projectBrandName = "", logo = "", projectId, onBusyChange, disableBackgroundMusic = false }) {
     const [styleId, setStyleId] = useState(content.generation_config?.visual_style || "");
     const preset = getVisualStyle(styleId);
     const defaultLayout = getDefaultLayout(preset);
@@ -31,11 +31,8 @@ export default function ContentFinisher({ content, username = "", brandName: pro
     const isImageContent = content.scenes?.length > 0 && content.scenes.every((item) => item.media_type === "image");
     const mediaUrl = assetUrl(scene?.media_url);
     const resolvedLogo = assetUrl(logo || content.branding?.logo || content.generation_config?.branding?.logo);
-    const platform = platformKey(content.platform);
-    const [handle, setHandle] = useState(() => (content.generation_config?.branding || content.branding)?.platform_usernames?.[platform] ?? (username || content.branding?.username || content.branding?.brand_name || content.generation_config?.branding?.username || ""));
-    const brandCredit = preset?.username.source === "brand_name";
     const [brandName, setBrandName] = useState(content.generation_config?.branding?.brand_name || content.branding?.brand_name || projectBrandName || "");
-    const resolvedUsername = brandCredit ? brandName : handle;
+    const resolvedUsername = brandName;
     const contentId = content.id || content.content_id;
     const resolvedProjectId = projectId || content.project_id;
     const aspectRatio = useMemo(() => {
@@ -72,8 +69,6 @@ export default function ContentFinisher({ content, username = "", brandName: pro
                 branding: {
                     ...(content.generation_config?.branding || content.branding || {}),
                     brand_name: brandName,
-                    username: handle,
-                    platform_usernames: { ...content.generation_config?.branding?.platform_usernames, [platform]: handle },
                     logo: logo || content.branding?.logo || content.generation_config?.branding?.logo || "",
                 },
                 overlay_layout: layout,
@@ -160,7 +155,7 @@ export default function ContentFinisher({ content, username = "", brandName: pro
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h3 className="text-lg font-bold text-slate-900">Finish & export{preset ? ` · ${preset.name}` : ""}</h3>
-                    <p className="text-sm text-slate-600">Drag the text, logo, and username. The layout applies to every scene in your final export.</p>
+                    <p className="text-sm text-slate-600">Drag the text, logo, and brand name. The layout applies to every scene in your final export.</p>
                 </div>
                 <Grip className="text-indigo-500" size={22} />
             </div>
@@ -191,11 +186,11 @@ export default function ContentFinisher({ content, username = "", brandName: pro
                             {!styleId && <option value="">Original layout</option>}
                             {VISUAL_STYLES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                         </select>
-                        <span className="mt-2 block text-xs font-normal text-slate-500">Changing the design applies its logo, username and text positions. You can then drag to adjust.</span>
+                        <span className="mt-2 block text-xs font-normal text-slate-500">Changing the design applies its logo, brand name and text positions. You can then drag to adjust.</span>
                     </label>
-                    <label className="block text-sm font-semibold text-slate-800">{brandCredit ? "Brand name" : `${content.platform} ${platform === "facebook" ? "page name" : "username"}`}
-                        <input disabled={busy} value={brandCredit ? brandName : handle} onChange={(event) => { (brandCredit ? setBrandName : setHandle)(event.target.value); setRenderUrl(""); }} className="mt-2 w-full rounded-xl border border-slate-200 p-3" placeholder={brandCredit ? "Your brand name" : platform === "facebook" ? "Your page name" : "@yourhandle"} />
-                        <span className="mt-1 block text-xs font-normal text-slate-500">{brandCredit ? 'Use your full brand name. Save layout to apply it to exports.' : "Your brand logo stays separate. Save layout to save this platform's name."}</span>
+                    <label className="block text-sm font-semibold text-slate-800">Brand name
+                        <input disabled={busy} value={brandName} onChange={(event) => { setBrandName(event.target.value); setRenderUrl(""); }} className="mt-2 w-full rounded-xl border border-slate-200 p-3" placeholder="Your brand name" />
+                        <span className="mt-1 block text-xs font-normal text-slate-500">Use your full brand name. Save layout to apply it to exports.</span>
                     </label>
                     <label className="block text-sm font-semibold text-slate-800">Preview scene
                         <select value={sceneIndex} onChange={(event) => setSceneIndex(Number(event.target.value))} className="mt-2 block w-full rounded-xl border border-slate-200 bg-white p-3">
@@ -204,7 +199,7 @@ export default function ContentFinisher({ content, username = "", brandName: pro
                     </label>
                     {preset && <fieldset disabled={busy} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
                         <legend className="px-1 text-sm font-semibold text-slate-800">Overlay opacity</legend>
-                        {[['logo', 'Logo'], ['username', brandCredit ? 'Brand name' : 'Username'], ['text', 'Text']].filter(([name]) => preset[name].visible !== false).map(([name, label]) => <label key={name} className="block text-xs text-slate-600">
+                        {[['logo', 'Logo'], ['username', 'Brand name'], ['text', 'Text']].filter(([name]) => preset[name].visible !== false).map(([name, label]) => <label key={name} className="block text-xs text-slate-600">
                             <span className="flex justify-between"><span>{label}</span><span>{Math.round((opacity[name] ?? preset[name].opacity ?? 1) * 100)}%</span></span>
                             <input aria-label={`${label} opacity`} type="range" min="0" max="100" value={Math.round((opacity[name] ?? preset[name].opacity ?? 1) * 100)} onChange={(event) => { setOpacity((current) => ({ ...current, [name]: Number(event.target.value) / 100 })); setRenderUrl(""); }} className="mt-1 w-full accent-indigo-600" />
                         </label>)}

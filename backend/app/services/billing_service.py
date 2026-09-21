@@ -14,7 +14,7 @@ from app.models.scene import Scene
 from app.models.voice import Voice
 
 DEFAULT_PLANS = [
-    dict(code="trial", name="Trial", price_inr=0, period_days=7, brands=1, video_seconds=None, video_exports=3, image_exports=10),
+    dict(code="trial", name="Trial", price_inr=0, period_days=7, brands=1, video_seconds=None, video_exports=None, image_exports=10),
     dict(code="creator", name="Creator", price_inr=499, period_days=30, brands=1, video_seconds=1800, video_exports=None, image_exports=100),
     dict(code="pro", name="Pro", price_inr=999, period_days=30, brands=5, video_seconds=5400, video_exports=None, image_exports=300),
     dict(code="agency", name="Agency", price_inr=2499, period_days=30, brands=15, video_seconds=15000, video_exports=None, image_exports=1000),
@@ -30,6 +30,8 @@ def utc(value):
 
 
 def seed_plans(db):
+    # Upgrade existing installations as well as newly created plans.
+    db.query(BillingPlan).filter(BillingPlan.code == "trial").update({BillingPlan.video_exports: None})
     for values in DEFAULT_PLANS:
         if db.get(BillingPlan, values["code"]) is None:
             try:
@@ -114,7 +116,7 @@ def reserve(db, user_id, kind, units, resource, request_key=None):
         if plan.video_seconds is not None and totals["video_seconds"] + units > plan.video_seconds:
             raise HTTPException(403, "This video exceeds your remaining video-minute allowance. Shorten it or open Plans & usage.")
         if plan.video_exports is not None and totals["video_exports"] + 1 > plan.video_exports:
-            raise HTTPException(403, "Your trial video exports are used up. Open Plans & usage.")
+            raise HTTPException(403, "Your video export allowance is used up. Open Plans & usage.")
     row = previous or ExportUsage(id=str(uuid.uuid4()), user_id=user_id, request_key=key, resource=resource, kind=kind)
     row.units, row.period_start, row.status, row.active_user, row.created_at = units, sub.starts_at, "reserved", user_id, now()
     row.result, row.finished_at = None, None

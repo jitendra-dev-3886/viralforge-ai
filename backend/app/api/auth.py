@@ -16,6 +16,7 @@ from app.services.auth_service import AuthService
 from app.services.oauth_service import OAuthService
 from app.core.security import get_current_user_id
 from app.models.user import User
+from app.core.admin_access import sync_owner_access
 
 router = APIRouter(
     prefix="/api/auth",
@@ -92,6 +93,7 @@ def current_user(user_id: int = Depends(get_current_user_id), db: Session = Depe
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+    sync_owner_access(db, user)
     has_password = bool(user.hashed_password and user.hashed_password.startswith("$2"))
     return {"success": True, "user": {"id": user.id, "name": user.name, "email": user.email, "is_active": user.is_active, "is_verified": user.is_verified, "is_super_admin": user.is_super_admin, "has_password": has_password}}
 

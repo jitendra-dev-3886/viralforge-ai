@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from secrets import token_urlsafe
-import os
+from app.core.admin_access import is_owner_email, sync_owner_access
 
 from sqlalchemy.orm import Session
 
@@ -43,7 +43,7 @@ class AuthService:
             name=request.name,
             email=request.email,
             hashed_password=hash_password(request.password),
-            is_super_admin=request.email.lower() == os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower(),
+            is_super_admin=is_owner_email(request.email),
         )
 
         db.add(user)
@@ -82,12 +82,6 @@ class AuthService:
                 "message": "Invalid email or password."
             }
 
-        configured_admin = os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower()
-        if configured_admin and user.email.lower() == configured_admin and not user.is_super_admin:
-            user.is_super_admin = True
-            db.commit()
-            db.refresh(user)
-
         if not user.hashed_password or not user.hashed_password.startswith("$2") or not verify_password(
             request.password,
             user.hashed_password,
@@ -102,6 +96,8 @@ class AuthService:
                 "success": False,
                 "message": "Account disabled."
             }
+
+        sync_owner_access(db, user)
 
         access_token = create_access_token(
             {

@@ -1,4 +1,4 @@
-import os
+from app.core.admin_access import sync_owner_access
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -18,10 +18,7 @@ router = APIRouter(prefix="/api/admin", tags=["Super Admin"])
 
 def require_admin(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)) -> User:
     user = db.query(User).filter(User.id == user_id).first()
-    configured_email = os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower()
-    if user and configured_email and user.email.lower() == configured_email and not user.is_super_admin:
-        user.is_super_admin = True
-        db.commit(); db.refresh(user)
+    sync_owner_access(db, user)
     if not user or not user.is_active or not user.is_super_admin:
         raise HTTPException(status_code=403, detail="Super-admin access required.")
     return user

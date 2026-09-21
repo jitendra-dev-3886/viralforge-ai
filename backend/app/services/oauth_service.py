@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.security import ALGORITHM, SECRET_KEY, create_access_token
 from app.models.social_account import SocialAccount
 from app.models.user import User
+from app.core.admin_access import sync_owner_access
 
 
 class OAuthService:
@@ -107,4 +108,5 @@ class OAuthService:
         if not user.is_active: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled.")
         account.username = profile.get("username"); account.avatar_url = profile.get("avatar"); account.profile_data = profile.get("data") or {}; account.last_login_at = datetime.now(timezone.utc)
         db.commit(); db.refresh(user)
+        sync_owner_access(db, user)
         return user, create_access_token({"user_id": user.id, "email": user.email})

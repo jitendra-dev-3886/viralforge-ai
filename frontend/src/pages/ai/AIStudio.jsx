@@ -1,5 +1,5 @@
 import UserProviderSelector from "../settings/UserProviderSelector";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { generateContent } from "../../api/ai";
 import { useProject } from "../../context/ProjectContext";
@@ -14,7 +14,6 @@ import SummaryPanel from "./SummaryPanel";
 import VisualStyleSelector from "./VisualStyleSelector";
 import { getVisualStyle } from "./visualStyles";
 import { assetUrl } from "../../api/axios";
-import { AuthContext } from "../../context/AuthContext";
 import { useBrand } from "../../context/BrandContext";
 
 export default function AIStudio() {
@@ -37,7 +36,6 @@ export default function AIStudio() {
 
     const { projects } = useProject();
     const { brands } = useBrand();
-    const { user } = useContext(AuthContext);
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [selectedContent, setSelectedContent] = useState([]);
     const hasQuoteOutput = selectedContent.some((item) => item.endsWith(":quote"));
@@ -51,7 +49,7 @@ export default function AIStudio() {
         [brands, selectedProject?.brand_id],
     );
     const branding = generatedContent?.branding || generatedContent?.data?.branding || {};
-    const overlayUsername = branding.username || user?.name || selectedBrand?.name || "";
+    const overlayUsername = branding.brand_name || selectedBrand?.name || "";
     const overlayLogo = branding.logo || selectedBrand?.logo || "";
 
     const isReady = Boolean(

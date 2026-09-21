@@ -137,7 +137,7 @@ export function SampleComposition({ preset, topic, brandName, logo, platform, co
         </svg>
         <StyleFrame preset={preset} />
         {overlay("logo", <StyledLogo preset={preset} src={logo} initial={brandName?.[0]?.toUpperCase() || "V"} />)}
-        {overlay("username", <PlatformUsername preset={preset} text={brandName || (preset.username.source === "brand_name" ? "Your Brand" : "@yourbrand")} platform={platform} />)}
+        {overlay("username", <PlatformUsername preset={preset} text={brandName || "Your Brand"} platform={platform} />)}
         {overlay("text", <StyledCaption preset={preset} text={compact ? "Make every moment count." : (topic?.trim() || "Make every moment count.").slice(0, 100)} />)}
     </>;
 }

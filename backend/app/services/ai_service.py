@@ -627,7 +627,7 @@ class AIService:
                     "description": (output_data or ai_data).get("description", ""),
                     "story": (output_data or ai_data).get("story", ""),
                     "branding": {
-                        "username": project.user.name if project.user else "",
+                        "username": project.brand.name if project.brand else "",
                         "brand_name": project.brand.name if project.brand else "",
                         "logo": project.brand.logo if project.brand else "",
                         "primary_color": project.brand.primary_color if project.brand else None,
