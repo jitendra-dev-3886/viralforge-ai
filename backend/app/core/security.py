@@ -4,6 +4,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.user import User
 
 # ==========================================
 # JWT Configuration
@@ -74,6 +77,7 @@ def decode_access_token(token: str):
 
 def get_current_user_id(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ) -> int:
     """Return the authenticated user's ID from a valid Bearer token."""
     try:
@@ -81,10 +85,17 @@ def get_current_user_id(
         user_id = payload.get("user_id")
         if user_id is None:
             raise ValueError("Token does not contain a user ID")
-        return int(user_id)
+        user_id = int(user_id)
     except (JWTError, TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not db.query(User.id).filter(User.id == user_id, User.is_active.is_(True)).first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is unavailable. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user_id

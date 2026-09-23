@@ -1,6 +1,7 @@
 """Database-enforced pilot plans. No checkout, payment collection or auto-renewal."""
 import math
 import uuid
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -19,6 +20,21 @@ DEFAULT_PLANS = [
     dict(code="pro", name="Pro", price_inr=999, period_days=30, brands=5, video_seconds=5400, video_exports=None, image_exports=300),
     dict(code="agency", name="Agency", price_inr=2499, period_days=30, brands=15, video_seconds=15000, video_exports=None, image_exports=1000),
 ]
+
+# Account-specific access; assigning the admin role does not grant this exemption.
+PLAN_EXEMPT_EMAILS = frozenset({"super_admin@gmail.com", "ystechlab@gmail.com"})
+
+
+def has_unlimited_access(db, user_id):
+    user = db.query(User.email, User.is_active).filter(User.id == user_id).first()
+    return bool(user and user.is_active and user.email.strip().lower() in PLAN_EXEMPT_EMAILS)
+
+
+def unlimited_plan():
+    # Effective permissions only: do not change stored subscriptions or the catalog.
+    return SimpleNamespace(code="owner", name="Owner access", price_inr=0,
+                           period_days=None, brands=None, video_seconds=None,
+                           video_exports=None, image_exports=None)
 
 
 def now():
@@ -63,6 +79,8 @@ def subscription(db, user_id):
 def require_plan(db, user_id):
     lock_account(db, user_id)
     sub = subscription(db, user_id)
+    if has_unlimited_access(db, user_id):
+        return sub, unlimited_plan()
     plan = db.get(BillingPlan, sub.plan_name.lower())
     if not plan or sub.status != "active" or not sub.expires_at or utc(sub.expires_at) <= now():
         raise HTTPException(403, "Your plan has expired or is inactive. Open Plans & usage for access options. Existing content remains available.")
@@ -76,7 +94,7 @@ def used(db, user_id, period_start):
 
 def check_brand_limit(db, user_id):
     _, plan = require_plan(db, user_id)
-    if db.query(func.count(Brand.id)).filter(Brand.user_id == user_id).scalar() >= plan.brands:
+    if plan.brands is not None and db.query(func.count(Brand.id)).filter(Brand.user_id == user_id).scalar() >= plan.brands:
         raise HTTPException(403, f"Your {plan.name} plan allows {plan.brands} brand(s). Open Plans & usage to upgrade.")
     # Caller creates the brand and commits while still holding this account lock.
 
@@ -86,6 +104,9 @@ def snapshot(db, user_id):
     sub = subscription(db, user_id)
     plan = db.get(BillingPlan, sub.plan_name.lower())
     result = {"plan": plan_dict(plan) if plan else None, "status": sub.status if sub.expires_at and utc(sub.expires_at) > now() else "expired", "starts_at": utc(sub.starts_at), "expires_at": utc(sub.expires_at), "auto_renew": False, "usage": used(db, user_id, sub.starts_at), "brands_used": db.query(func.count(Brand.id)).filter(Brand.user_id == user_id).scalar(), "payments_enabled": False}
+    result["limits_exempt"] = has_unlimited_access(db, user_id)
+    if result["limits_exempt"]:
+        result.update(plan=plan_dict(unlimited_plan()), status="active", expires_at=None)
     db.commit()
     return result
 
@@ -110,7 +131,7 @@ def reserve(db, user_id, kind, units, resource, request_key=None):
     if db.query(ExportUsage).filter_by(active_user=user_id).first():
         raise HTTPException(409, "An export is already running for your account. Wait for it to finish. Contact an administrator if a server interruption left it pending.")
     totals = used(db, user_id, sub.starts_at)
-    if kind == "image" and totals["image_exports"] + units > plan.image_exports:
+    if kind == "image" and plan.image_exports is not None and totals["image_exports"] + units > plan.image_exports:
         raise HTTPException(403, "Your image export allowance is used up. Open Plans & usage.")
     if kind == "video":
         if plan.video_seconds is not None and totals["video_seconds"] + units > plan.video_seconds:

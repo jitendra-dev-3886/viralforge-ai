@@ -106,6 +106,81 @@ class BillingTests(unittest.TestCase):
         for index in range(5):
             self.completed("video", 10, f"existing-{index}")
 
+    def test_only_named_owners_have_unlimited_access_after_expiry(self):
+        from app.services.brand_service import BrandService
+        from app.schemas.brand import CreateBrandRequest
+        for user_id, email in ((1, "super_admin@gmail.com"), (2, "ystechlab@gmail.com")):
+            with self.subTest(email=email):
+                self.db.get(User, user_id).email = email
+                sub = billing.subscription(self.db, user_id)
+                sub.expires_at = billing.now() - timedelta(days=1)
+                sub.status = "expired"
+                self.db.commit()
+                for index in range(3):
+                    result = BrandService.create_brand(self.db, user_id, CreateBrandRequest(name=f"Brand {index}"))
+                    self.assertTrue(result["success"])
+                for kind, units in (("image", 10000), ("video", 100000)):
+                    row, _ = billing.reserve(self.db, user_id, kind, units, "test", kind)
+                    row.status, row.active_user = "completed", None
+                    self.db.commit()
+                self.user = user_id
+                response = self.client.get("/api/billing/me")
+                self.assertEqual(response.status_code, 200, response.text)
+                data = response.json()
+                self.assertTrue(data["limits_exempt"])
+                self.assertEqual(data["status"], "active")
+                self.assertIsNone(data["expires_at"])
+                self.assertEqual(data["brands_used"], 3)
+                for field in ("brands", "video_seconds", "video_exports", "image_exports"):
+                    self.assertIsNone(data["plan"][field])
+                self.assertEqual(data["usage"]["image_exports"], 10000)
+                self.assertEqual(sub.plan_name, "trial")
+                self.assertEqual(sub.status, "expired")
+        self.assertEqual(self.db.get(BillingPlan, "trial").brands, 1)
+        self.assertEqual(self.db.get(BillingPlan, "trial").image_exports, 10)
+
+    def test_other_admins_remain_limited_even_when_configured_as_owner(self):
+        with patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": "admin@example.test"}):
+            self.assertFalse(billing.snapshot(self.db, 3)["limits_exempt"])
+            self.db.add(Brand(user_id=3, name="First"))
+            self.db.commit()
+            with self.assertRaises(HTTPException):
+                billing.check_brand_limit(self.db, 3)
+            self.db.rollback()
+            with self.assertRaises(HTTPException):
+                billing.reserve(self.db, 3, "image", 11, "test", "over")
+            self.db.rollback()
+            sub = billing.subscription(self.db, 3)
+            sub.expires_at = billing.now() - timedelta(seconds=1)
+            self.db.commit()
+            with self.assertRaises(HTTPException):
+                billing.require_plan(self.db, 3)
+
+    def test_owner_access_still_enforces_active_account_and_export_lock(self):
+        self.db.get(User, 1).email = " Super_Admin@Gmail.com "
+        self.db.commit()
+        self.assertTrue(billing.snapshot(self.db, 1)["limits_exempt"])
+        billing.reserve(self.db, 1, "image", 100, "test", "first")
+        with self.assertRaises(HTTPException) as blocked:
+            billing.reserve(self.db, 1, "image", 100, "test", "second")
+        self.assertEqual(blocked.exception.status_code, 409)
+        self.db.rollback()
+        self.db.get(User, 1).is_active = False
+        self.db.commit()
+        with self.assertRaises(HTTPException):
+            billing.require_plan(self.db, 1)
+
+    def test_exemption_does_not_stick_after_email_changes(self):
+        user = self.db.get(User, 1)
+        user.email = "super_admin@gmail.com"
+        self.db.commit()
+        self.assertTrue(billing.snapshot(self.db, 1)["limits_exempt"])
+        user.email = "ordinary@example.test"
+        self.db.commit()
+        self.assertFalse(billing.snapshot(self.db, 1)["limits_exempt"])
+        with self.assertRaises(HTTPException):
+            billing.reserve(self.db, 1, "image", 11, "test", "over")
+
     @patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": ""})
     def test_owner_can_grant_access_and_delegate_admin(self):
         owner = self.db.get(User, 2)

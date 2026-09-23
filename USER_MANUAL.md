@@ -116,7 +116,11 @@ Automatic social posting remains disabled until approved Meta/YouTube developer 
 
 ## Super admin
 
+`super_admin@gmail.com` and `ystechlab@gmail.com` have unlimited brands and exports with no plan expiry while their accounts are active. **Plans & usage** shows **Owner access** for these two accounts. Other users, including other super admins, retain their normal plan limits. Export history, ownership checks, and the one-export-at-a-time rule still apply; AI provider charges are separate.
+
 Set `SUPER_ADMIN_EMAIL` in `backend/.env` to an existing account email. Restart the backend, log out, and log in again. **Super Admin** then provides user activation, verification, role controls, totals, and cross-workspace visibility.
+
+Under **Super Admin > Users > Actions**, use **Delete** and confirm to permanently remove a user and their linked database records. The list and totals refresh afterward. Your own account and configured owner accounts cannot be deleted; other admins must first be demoted to users. Accounts that have issued plan grants must be disabled instead to preserve grant history. An export in progress blocks deletion until it finishes. Deleted or disabled accounts cannot continue using existing authentication tokens. Stored media files and posts already published externally are not removed by this action.
 
 ## Troubleshooting
 

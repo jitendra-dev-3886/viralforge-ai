@@ -1,7 +1,8 @@
-from app.core.admin_access import sync_owner_access
+from app.core.admin_access import is_owner_email, sync_owner_access
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user_id
@@ -12,6 +13,8 @@ from app.models.project import Project
 from app.models.content import Content
 from app.models.media import Media
 from app.models.niche import Niche
+from app.models import Schedule, Image, Voice, Scene, Subscription, Usage, ApiSetting, SocialAccount, Trend
+from app.models.billing import ExportUsage, PlanGrant
 
 router = APIRouter(prefix="/api/admin", tags=["Super Admin"])
 
@@ -42,7 +45,46 @@ def overview(db: Session = Depends(get_db), admin: User = Depends(require_admin)
 @router.get("/users")
 def users(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     rows = db.query(User).order_by(User.created_at.desc()).all()
-    return {"success": True, "users": [{"id": u.id, "name": u.name, "email": u.email, "is_active": u.is_active, "is_verified": u.is_verified, "is_super_admin": u.is_super_admin, "created_at": u.created_at} for u in rows]}
+    return {"success": True, "users": [{"id": u.id, "name": u.name, "email": u.email, "is_active": u.is_active, "is_verified": u.is_verified, "is_super_admin": u.is_super_admin, "created_at": u.created_at, "delete_blocked_reason": delete_blocked_reason(u, admin)} for u in rows]}
+
+
+def delete_blocked_reason(target: User, admin: User) -> str | None:
+    if target.id == admin.id:
+        return "You cannot delete your own account."
+    if is_owner_email(target.email):
+        return "Owner accounts cannot be deleted."
+    if target.is_super_admin:
+        return "Demote this admin to a user before deleting the account."
+    return None
+
+
+@router.delete("/users/{target_id}")
+def delete_user(target_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    target = db.query(User).filter(User.id == target_id).with_for_update().first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found.")
+    reason = delete_blocked_reason(target, admin)
+    if reason:
+        raise HTTPException(status_code=400, detail=reason)
+    if db.query(PlanGrant.id).filter(PlanGrant.admin_id == target_id).first():
+        raise HTTPException(status_code=409, detail="This account has issued plan grants. Disable it instead to preserve the grant history.")
+    if db.query(ExportUsage.id).filter(ExportUsage.user_id == target_id, ExportUsage.status == "reserved").first():
+        raise HTTPException(status_code=409, detail="This user has an export in progress. Wait for it to finish before deleting the account.")
+    try:
+        # Delete children first, including records without User ORM relationships.
+        # Core deletes avoid ORM attempts to null non-nullable ownership columns.
+        # Stored files are retained, matching the existing project deletion policy.
+        for model in (Schedule, Image, Voice, Scene, Media, Content, Project, Brand,
+                      ExportUsage, PlanGrant, Subscription, Usage, ApiSetting,
+                      SocialAccount, Trend, Niche):
+            table = model.__table__
+            db.execute(table.delete().where(table.c.user_id == target_id))
+        db.execute(User.__table__.delete().where(User.id == target_id))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Linked records prevent deletion. No changes were saved; disable the account instead.")
+    return {"success": True, "message": "User and linked database records deleted."}
 
 
 @router.put("/users/{target_id}")
