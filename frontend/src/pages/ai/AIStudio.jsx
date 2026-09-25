@@ -15,6 +15,10 @@ import VisualStyleSelector from "./VisualStyleSelector";
 import { getVisualStyle } from "./visualStyles";
 import { assetUrl } from "../../api/axios";
 import { useBrand } from "../../context/BrandContext";
+import ManualMediaPicker from "./ManualMediaPicker";
+import { applyManualMedia, uploadSlotCount } from "./manualMedia";
+import { uploadSceneMedia } from "../../api/scene";
+import { getContent } from "../../api/content";
 
 export default function AIStudio() {
 
@@ -30,6 +34,8 @@ export default function AIStudio() {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [manualFiles, setManualFiles] = useState({});
+    const [uploadingManual, setUploadingManual] = useState(false);
 
     const [generatedContent, setGeneratedContent] = useState(null);
     const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -137,6 +143,10 @@ export default function AIStudio() {
 
         try {
 
+            const assignments = uploadOutputs.flatMap(output => Array.from({ length: output.count }, (_, index) => ({
+                platform: output.platform, format: output.format, index, file: manualFiles[`${output.key}:${index}`],
+            })).filter(item => item.file));
+
             const payload = {
                 project_id: selectedProjectId,
                 platforms: selectedPlatforms.map(formatPlatformLabel),
@@ -160,7 +170,14 @@ export default function AIStudio() {
 
             const response = await generateContent(payload);
 
-            setGeneratedContent(response);
+            if (assignments.length) {
+                setUploadingManual(true);
+                const { result, failures } = await applyManualMedia(response, assignments, uploadSceneMedia, getContent);
+                setGeneratedContent(result);
+                if (failures.length) setError(`Content was generated, but uploads failed for: ${failures.join("; ")}. Retry those files using the upload controls in the preview below.`);
+            } else {
+                setGeneratedContent(response);
+            }
 
         } catch (error) {
 
@@ -206,6 +223,7 @@ export default function AIStudio() {
         } finally {
 
             setLoading(false);
+            setUploadingManual(false);
 
         }
 
@@ -222,6 +240,14 @@ export default function AIStudio() {
             selectedPlatforms.includes(item.split(":")[0])
         )));
     }, [selectedPlatforms]);
+
+    const uploadOutputs = selectedContent.map(key => {
+        const [platform, type] = key.split(":");
+        return { key, type, platform: formatPlatformLabel(platform), format: formatContentTypePrompt(key),
+            label: formatContentTypeLabel(key), count: uploadSlotCount(type, selectedPackage, generationOptions.scene_count) };
+    });
+
+    useEffect(() => { setManualFiles({}); }, [selectedProjectId, selectedPackage, generationOptions.scene_count, selectedContent]);
 
     return (
 
@@ -328,6 +354,8 @@ export default function AIStudio() {
                 topic={selectedTopic}
                 packageType={selectedPackage}
             />
+            <ManualMediaPicker outputs={uploadOutputs} files={manualFiles} onChange={setManualFiles} disabled={loading} />
+            {uploadingManual && <p role="status" className="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-700">Content generated. Applying your images and video clips to the selected scenes...</p>}
             <GenerateButton
                 loading={loading}
                 onGenerate={handleGenerate}

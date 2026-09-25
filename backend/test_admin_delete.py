@@ -59,7 +59,10 @@ class AdminDeleteTests(unittest.TestCase):
             (models.Scene, dict(id=owner, project_id=owner, content_id=owner, media_id=owner, scene_number=1, text="Scene")),
             (models.Image, dict(project_id=owner, content_id=owner, scene_id=owner, prompt="Image")),
             (models.Voice, dict(project_id=owner, content_id=owner, scene_id=owner, voice="test", text="Voice")),
-            (models.Schedule, dict(project_id=owner, content_id=owner, platform="Instagram", scheduled_at=now)),
+            (models.Schedule, dict(id=owner, project_id=owner, content_id=owner, platform="Instagram", scheduled_at=now)),
+            (models.PublishingAccount, dict(id=owner, provider="instagram", remote_id=str(owner), name="Account", access_token="encrypted-fixture", status="connected")),
+            (models.PublishingOAuthState, dict(state_hash=str(owner), browser_hash="browser", provider="instagram", expires_at=now + timedelta(minutes=10))),
+            (models.PublishJob, dict(id=owner, schedule_id=owner, account_id=owner, request_key=str(owner), status="published", payload={}, provider_state={}, next_attempt_at=now)),
             (models.Subscription, dict(plan_name="trial")),
             (models.Usage, dict(feature="test")),
             (models.ApiSetting, dict(provider="test", api_key="test-only")),
@@ -71,6 +74,7 @@ class AdminDeleteTests(unittest.TestCase):
         ]
         for model, values in rows:
             self.db.execute(model.__table__.insert().values(user_id=owner, **values))
+        self.db.add(models.PublishEvent(job_id=owner, status="published", message="Test publication"))
         self.db.commit()
 
     def test_delete_cleans_all_owned_records_and_preserves_other_user(self):
@@ -84,6 +88,8 @@ class AdminDeleteTests(unittest.TestCase):
                 self.assertEqual(self.db.scalar(select(func.count()).select_from(table).where(table.c.user_id == 2)), 0, table.name)
                 self.assertEqual(self.db.scalar(select(func.count()).select_from(table).where(table.c.user_id == 3)), 1, table.name)
         self.assertEqual(self.client.get("/authenticated", headers=self.auth(2)).status_code, 401)
+        self.assertEqual(self.db.query(models.PublishEvent).filter_by(job_id=2).count(), 0)
+        self.assertEqual(self.db.query(models.PublishEvent).filter_by(job_id=3).count(), 1)
         self.assertEqual(self.client.get("/authenticated", headers=self.auth(3)).status_code, 200)
         self.assertEqual(self.client.get("/api/admin/overview", headers=self.headers).json()["counts"]["users"], 4)
         self.assertEqual(self.client.delete("/api/admin/users/2", headers=self.headers).status_code, 404)

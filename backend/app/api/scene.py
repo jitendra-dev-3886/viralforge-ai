@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pathlib import Path
+from uuid import uuid4
+from app.models.media import Media
+from app.core.ffmpeg_client import FFmpegClient
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,6 +23,58 @@ router = APIRouter(
     prefix="/api/scenes",
     tags=["Scenes"],
 )
+
+
+@router.post("/{scene_id:int}/media")
+async def upload_scene_media(
+    scene_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    scene = db.query(Scene).filter_by(id=scene_id, user_id=user_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found.")
+    extension = Path(file.filename or "").suffix.lower()
+    types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+             ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}
+    if extension not in types:
+        raise HTTPException(status_code=400, detail="Upload a JPG, PNG, WebP, MP4, MOV, or WebM file.")
+    media_type = types[extension].split("/")[0]
+    limit = (20 if media_type == "image" else 100) * 1024 * 1024
+    folder = Path("storage/projects") / str(scene.project_id) / "uploads"
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = f"scene_{scene.id}_{uuid4().hex}{extension}"
+    path = folder / filename
+    try:
+        size = 0
+        with path.open("wb") as destination:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(status_code=413, detail=f"File must be {limit // (1024 * 1024)} MB or smaller.")
+                destination.write(chunk)
+        if not size or not await run_in_threadpool(FFmpegClient.is_media_readable, str(path)):
+            raise HTTPException(status_code=422, detail="This file has no readable image or video. Choose another file.")
+        media = Media(user_id=user_id, project_id=scene.project_id, media_type=media_type,
+                      provider="upload", title=Path(file.filename).name[:255], file_name=filename,
+                      file_path=str(path), file_url=f"/storage/projects/{scene.project_id}/uploads/{filename}",
+                      mime_type=types[extension], extension=extension, file_size=size, status="ready")
+        db.add(media)
+        db.flush()
+        scene.media_id = media.id
+        scene.media_type = media_type
+        scene.status = "media_ready"
+        result = {"success": True, "media_id": media.id, "media_url": media.file_url,
+                  "media_type": media_type, "media_provider": "upload", "status": scene.status}
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
 
 @router.put("/content/{content_id}/reorder")
 def reorder_scenes(content_id: int, request: SceneReorder, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):

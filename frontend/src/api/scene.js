@@ -1,5 +1,11 @@
 import api from "./axios";
 
+export const uploadSceneMedia = async (sceneId, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return (await api.post(`/scenes/${sceneId}/media`, form, { headers: { "Content-Type": "multipart/form-data" } })).data;
+};
+
 export const getContentScenes = async (contentId) => {
     const response = await api.get(`/scenes/content/${contentId}`);
     return response.data;

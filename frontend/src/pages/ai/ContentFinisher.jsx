@@ -9,6 +9,7 @@ import { StyleFrame, StyledCaption, StyledLogo } from "./StyleArtwork";
 import { getVisualStyle, getDefaultLayout, getSavedLayout, mediaPlacement, VISUAL_STYLES } from "./visualStyles";
 
 import PlatformUsername from "./PlatformUsername";
+import { musicSearchSuggestions } from "../workspace/audioSuggestions";
 
 const clamp = (value) => Math.max(3, Math.min(97, value));
 
@@ -21,6 +22,11 @@ export default function ContentFinisher({ content, brandName: projectBrandName =
     const [layout, setLayout] = useState(() => getSavedLayout(preset, content.generation_config));
     const [dragging, setDragging] = useState(null);
     const [music, setMusic] = useState(null);
+    const savedAudio = useRef(content.generation_config?.audio || {});
+    const [musicCredit, setMusicCredit] = useState(content.generation_config?.audio?.license_note || "");
+    useEffect(() => {
+        savedAudio.current = content.generation_config?.audio || {};
+    }, [content.generation_config?.audio]);
     const [busy, setBusy] = useState(false);
     useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
     const [message, setMessage] = useState("");
@@ -57,11 +63,12 @@ export default function ContentFinisher({ content, brandName: projectBrandName =
         }));
     };
 
-    const saveLayout = async () => {
+    const saveLayout = async (audioOverride) => {
         if (!contentId) throw new Error("Content must be saved before editing its layout.");
         await updateContent(contentId, {
             generation_config: {
                 ...(content.generation_config || {}),
+                audio: audioOverride || { ...savedAudio.current, license_note: musicCredit },
                 ...(disableBackgroundMusic ? { audio: { ...content.generation_config?.audio, music_id: null, license_note: "" } } : {}),
                 visual_style: styleId || null,
                 visual_layout_version: 2,
@@ -101,8 +108,13 @@ export default function ContentFinisher({ content, brandName: projectBrandName =
         setBusy(true);
         setMessage("Saving layout and rendering all scenes…");
         try {
-            await saveLayout();
-            if (!disableBackgroundMusic && music) await uploadProjectMusic(resolvedProjectId, music);
+            let audio = { ...savedAudio.current, license_note: musicCredit };
+            if (!disableBackgroundMusic && music) {
+                const uploaded = await uploadProjectMusic(resolvedProjectId, music, true);
+                audio = { ...audio, music_id: uploaded.music.id };
+            }
+            await saveLayout(audio);
+            savedAudio.current = audio;
             const result = await generateProjectRender(resolvedProjectId, contentId);
             const url = result.file_url || result.output_url || result.render?.file_url;
             const freshUrl = assetUrl(url);
@@ -209,6 +221,10 @@ export default function ContentFinisher({ content, brandName: projectBrandName =
                         <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800"><Music size={17} /> Background music (optional)</span>
                         <input type="file" accept="audio/*" onChange={(event) => setMusic(event.target.files?.[0] || null)} className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-100 file:px-3 file:py-2 file:font-medium file:text-indigo-700" />
                         <span className="mt-2 block text-xs text-slate-500">Up to 25 MB. Music loops quietly beneath narration in video exports.</span>
+                        <span className="mt-2 block text-xs text-slate-600">Suggested searches: {musicSearchSuggestions(content).join(", ")}</span>
+                        <a href="https://www.youtube.com/audiolibrary" target="_blank" rel="noreferrer" className="mt-2 block text-sm text-indigo-600 underline">Open YouTube Audio Library</a>
+                        <span className="mt-2 block text-xs text-slate-500">Download a suitable track, then upload it here. Paste any required attribution below; it will be included in newly scheduled posts.</span>
+                        <textarea aria-label="Music attribution" value={musicCredit} onChange={event => setMusicCredit(event.target.value)} placeholder="Music credit / required attribution (optional)" className="mt-2 w-full rounded-lg border p-2 text-sm" />
                     </label>}
 
                     <div className="flex flex-wrap gap-3">

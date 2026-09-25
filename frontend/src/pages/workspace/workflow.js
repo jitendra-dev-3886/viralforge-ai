@@ -1,3 +1,5 @@
+import { apiErrorMessage } from "../../api/errors.js";
+
 export const STEPS = ["Brief", "Script", "Media", "Voice", "Design & export", "Schedule"];
 export const FORMATS = {
     Instagram: ["Reel", "Carousel", "Story", "Post", "Quote"],
@@ -24,8 +26,7 @@ export function assertSuccess(result) {
     return result;
 }
 export function errorMessage(error) {
-    const detail = error.response?.data?.detail;
-    return typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((item) => item.msg).join(". ") : detail?.message || error.message || "Something went wrong. Please retry.";
+    return apiErrorMessage(error, "Something went wrong. Please retry.");
 }
 export function contentPatch(content) {
     return Object.fromEntries(["title", "hook", "script", "caption", "hashtags", "keywords", "cta"].map((name) => [name, Array.isArray(content[name]) ? content[name].join(",") : content[name] || ""]));

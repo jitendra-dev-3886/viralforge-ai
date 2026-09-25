@@ -1,4 +1,5 @@
 import AIProviders from "./AIProviders";
+import SocialConnections from "./SocialConnections";
 import { useEffect, useState } from "react";
 import { createNiche, deleteNiche, getNiches, updateNiche } from "../../api/niche";
 import { useNiches } from "../../context/NicheContext";
@@ -28,6 +29,7 @@ export default function SettingsPage() {
 
   return <div className="p-1 sm:p-4 lg:p-8">
     <div className="mb-8"><h1 className="text-3xl font-bold">Settings</h1><p className="mt-2 text-slate-500">Manage workspace preferences and niches shown across ViralForge.</p></div>
+    <SocialConnections />
     <AIProviders />
     {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <section className="rounded-3xl bg-white p-6 shadow-sm">

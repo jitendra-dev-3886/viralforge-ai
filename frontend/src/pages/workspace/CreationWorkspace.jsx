@@ -48,6 +48,7 @@ function Workspace({ storageKey }) {
     const [restoring, setRestoring] = useState(true);
     const [restoreFailed, setRestoreFailed] = useState(false);
     const [exportBusy, setExportBusy] = useState(false);
+    const [uploadBusy, setUploadBusy] = useState(false);
     const [storageError, setStorageError] = useState(false);
     const [media, setMedia] = useState([]);
     const [voices, setVoices] = useState([]);
@@ -55,7 +56,7 @@ function Workspace({ storageKey }) {
     const [resumeId, setResumeId] = useState("");
     const [listVersion, setListVersion] = useState(0);
     const lock = useRef(false);
-    const isBusy = Boolean(busy || restoring || exportBusy);
+    const isBusy = Boolean(busy || restoring || exportBusy || uploadBusy);
     const selectedProject = projects.find((item) => Number(item.id) === Number(brief.projectId));
     const brand = brands.find((item) => Number(item.id) === Number(selectedProject?.brand_id));
 
@@ -95,13 +96,13 @@ function Workspace({ storageKey }) {
     }, [brief.projectId, listVersion]);
 
     useEffect(() => {
-        const warn = (event) => { if (busy || exportBusy || (dirty && storageError)) { event.preventDefault(); event.returnValue = ""; } };
+        const warn = (event) => { if (busy || exportBusy || uploadBusy || (dirty && storageError)) { event.preventDefault(); event.returnValue = ""; } };
         window.addEventListener("beforeunload", warn);
         return () => window.removeEventListener("beforeunload", warn);
-    }, [busy, exportBusy, dirty, storageError]);
+    }, [busy, exportBusy, uploadBusy, dirty, storageError]);
 
     const run = async (label, task) => {
-        if (lock.current || exportBusy) return;
+        if (lock.current || exportBusy || uploadBusy) return;
         lock.current = true; setBusy(label); setError(""); setNotice("");
         try { return await task(); }
         catch (err) { setError(errorMessage(err)); return null; }
@@ -159,15 +160,15 @@ function Workspace({ storageKey }) {
         {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
         {storageError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Browser draft storage is unavailable. Save your draft before leaving.</p>}
         {restoreFailed && <p className="text-sm text-amber-700">Your previous local draft has been kept. Refresh to retry restoring it, or resume a saved item.</p>}
-        {isBusy && <p role="status" className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 text-sm text-indigo-800"><LoaderCircle size={17} className="animate-spin" />{busy || (exportBusy ? "Preparing your export..." : "Restoring workspace...")}</p>}
+        {isBusy && <p role="status" className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 text-sm text-indigo-800"><LoaderCircle size={17} className="animate-spin" />{busy || (uploadBusy ? "Uploading scene media..." : exportBusy ? "Preparing your export..." : "Restoring workspace...")}</p>}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <section hidden={step !== 0}><BriefStep brief={brief} onChange={setBrief} projects={projects} niches={niches} brand={brand} busy={isBusy} hasContent={Boolean(content)} onGenerate={generate} /></section>
             {content && <>
                 <section hidden={step !== 1}><ScriptStep content={content} onChange={edit} busy={isBusy} /></section>
-                <section hidden={step !== 2}><MediaStep content={content} media={media} busy={isBusy} run={run} refresh={refresh} /></section>
+                <section hidden={step !== 2}><MediaStep content={content} media={media} busy={isBusy} run={run} refresh={refresh} onUploadBusyChange={setUploadBusy} /></section>
                 <section hidden={step !== 3}><VoiceStep key={content.id} content={content} voices={voices} busy={isBusy} run={run} refreshVoices={refreshVoices} refresh={refresh} /></section>
-                <section hidden={step !== 4}><h2 className="text-xl font-bold">Preview, style and export</h2><p className="mt-1 text-sm text-slate-500">Choose a design, adjust your overlays, then export images or merge a video. Keep this workspace open until the export finishes.</p><fieldset disabled={Boolean(busy || restoring)}><ContentFinisher key={content.id} content={content} projectId={content.project_id} onBusyChange={setExportBusy} disableBackgroundMusic /></fieldset></section>
+                <section hidden={step !== 4}><h2 className="text-xl font-bold">Preview, style and export</h2><p className="mt-1 text-sm text-slate-500">Choose a design, adjust your overlays, then export images or merge a video. Keep this workspace open until the export finishes.</p><fieldset disabled={Boolean(busy || restoring)}><ContentFinisher key={content.id} content={content} projectId={content.project_id} onBusyChange={setExportBusy} /></fieldset></section>
                 <section hidden={step !== 5}><ScheduleStep key={content.id} content={content} busy={isBusy} run={run} refresh={refresh} /></section>
             </>}
         </div>

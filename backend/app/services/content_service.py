@@ -34,7 +34,7 @@ class ContentService:
             "created_at": content.created_at, "updated_at": content.updated_at,
             "scenes": [{
                 "id": scene.id, "scene": scene.scene_number, "title": scene.title,
-                "text": scene.text, "keyword": scene.keyword,
+                "text": scene.text, "voice_text": scene.voice_text, "keyword": scene.keyword,
                 "image_prompt": scene.image_prompt, "video_prompt": scene.video_prompt,
                 "media_type": scene.media_type, "duration": scene.duration,
                 "status": scene.status, "media_id": scene.media_id,

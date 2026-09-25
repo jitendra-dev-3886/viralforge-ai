@@ -2,16 +2,41 @@ import { useEffect, useState } from "react";
 import { Copy, Download, Sparkles } from "lucide-react";
 import { downloadMedia } from "../../api/media";
 import ContentFinisher from "./ContentFinisher";
+import SceneMediaUpload from "../../components/SceneMediaUpload";
 import { assetUrl } from "../../api/axios";
+import { Link } from "react-router-dom";
+import { getContent } from "../../api/content";
 
 export default function PreviewPanel({ data, username = "", brandName = "", logo = "", projectId }) {
+    const [uploads, setUploads] = useState({});
+    const [uploadBusy, setUploadBusy] = useState(false);
     const [selectedMediaIds, setSelectedMediaIds] = useState([]);
     const [downloading, setDownloading] = useState(false);
     const [downloadError, setDownloadError] = useState("");
+    const [savedContents, setSavedContents] = useState({});
+    const [sceneError, setSceneError] = useState("");
 
     useEffect(() => {
+        setUploads({});
         setSelectedMediaIds([]);
         setDownloadError("");
+        setSavedContents({});
+        setSceneError("");
+        let active = true;
+        const outputs = data?.data?.title !== undefined
+            ? [{ ...data.data, content_id: data.data.content_id || data.content_id }]
+            : Object.values(data?.data || {}).flatMap(platform => Object.values(platform || {}));
+        const missing = outputs.filter(content => (content?.content_id || content?.id) &&
+            (!content.scenes?.length || content.scenes.some(scene => !scene.id)));
+        Promise.all(missing.map(async content => {
+            const id = content.content_id || content.id;
+            const response = await getContent(id);
+            const saved = response.content || response.data || response;
+            if (!saved.scenes?.length) throw new Error("Saved scenes are unavailable.");
+            return [id, saved];
+        })).then(entries => { if (active) setSavedContents(Object.fromEntries(entries)); })
+            .catch(() => { if (active) setSceneError("Unable to load saved scenes. Open the content editor or refresh to try again."); });
+        return () => { active = false; };
     }, [data]);
 
     const normalizeArray = (value) => {
@@ -153,6 +178,7 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
                         Media preview is unavailable for this scene. Regenerate after checking Pexels/Pixabay API keys.
                     </p>
                 )}
+                <SceneMediaUpload sceneId={scene.id} disabled={uploadBusy} onBusyChange={setUploadBusy} onUploaded={result => { setUploads(current => ({...current, [scene.id]: result})); setSelectedMediaIds(current => current.filter(id => id !== scene.media_id)); }} />
             </article>
         );
     };
@@ -207,7 +233,10 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
         );
     };
 
-    const renderContentCard = (content) => {
+    const renderContentCard = (original) => {
+        const contentId = original.content_id || original.id;
+        const saved = savedContents[contentId] || original;
+        const content = {...original, ...saved, scenes: (saved.scenes || []).map(scene => uploads[scene.id] ? {...scene, ...uploads[scene.id]} : scene)};
         const hashtags = normalizeArray(content.hashtags);
         const keywords = normalizeArray(content.keywords);
 
@@ -233,13 +262,14 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
                 </button>
 
                 {renderScenes(content)}
-                <ContentFinisher
+                {contentId && <Link to={`/content/${contentId}/edit`} className="mt-4 inline-block rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700">Open content editor · Upload scene media</Link>}
+                <fieldset disabled={uploadBusy}><ContentFinisher
                     content={content}
                     username={username}
                     brandName={brandName}
                     logo={logo}
                     projectId={projectId || content.project_id}
-                />
+                /></fieldset>
             </article>
         );
     };
@@ -249,7 +279,8 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
             <div className="mt-10 rounded-2xl bg-white p-10 text-center shadow-lg">
                 <Sparkles size={70} className="mx-auto text-blue-500" />
                 <h2 className="mt-6 text-3xl font-bold">AI Content Preview</h2>
-                <p className="mt-4 text-gray-500">Generate content to preview results.</p>
+                <p className="mt-4 text-gray-500">Generate content first. Each scene in the preview will include an optional image or video upload.</p>
+                <Link to="/history" className="mt-4 inline-block text-sm text-indigo-600 underline">Open saved content to upload media</Link>
             </div>
         );
     }
@@ -276,8 +307,9 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
             )}
 
             {downloadError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{downloadError}</p>}
+            {sceneError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{sceneError}</p>}
 
-            {isFlatResponse ? renderContentCard(data.data) : (
+            {isFlatResponse ? renderContentCard({ ...data.data, content_id: data.data.content_id || data.content_id }) : (
                 Object.entries(data.data).map(([platform, platformData]) => (
                     <section key={platform} className="space-y-5">
                         <h2 className="text-3xl font-bold capitalize text-indigo-600">{platform.replaceAll("_", " ")}</h2>

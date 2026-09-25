@@ -131,11 +131,40 @@ class AIService:
                         candidates.extend(item for item in value.values() if isinstance(item, dict))
                 if not any(any(isinstance(item.get(field), str) and item[field].strip() for field in ("title", "script", "caption", "description")) for item in candidates):
                     raise ValueError("Response contains no usable content")
+                if request is not None:
+                    content = next((item for item in candidates if isinstance(item.get("scenes"), list)), None)
+                    AIService._validate_scene_sequence(content, request)
                 return text, model, data
             except ValueError:
                 if attempt:
                     raise
                 logger.warning("Provider %s returned unusable content; retrying once", provider)
+
+    @staticmethod
+    def _validate_scene_sequence(content, request):
+        expected, media_type, _, is_carousel, _ = PromptEngine.scene_settings(request)
+        scenes = content.get("scenes") if content else None
+        if not isinstance(scenes, list) or len(scenes) != expected:
+            raise ValueError(f"Expected a complete sequence of {expected} scenes")
+        seen = set()
+        for index, scene in enumerate(scenes, 1):
+            if not isinstance(scene, dict) or not isinstance(scene.get("text"), str) or not scene["text"].strip():
+                raise ValueError("Every scene needs meaningful text")
+            key = re.sub(r"\s+", " ", scene["text"]).strip().casefold()
+            if key in seen:
+                raise ValueError("Repeated scene text does not form a complete sequence")
+            seen.add(key)
+            if media_type == "video":
+                if not isinstance(scene.get("voice_text"), str) or not scene["voice_text"].strip():
+                    raise ValueError("Every video scene needs its own narration")
+            else:
+                scene["voice_text"] = scene["text"]
+            scene["scene"] = index
+            scene["scene_number"] = index
+        # The saved script must be the narration actually spoken in the export.
+        content["script"] = " ".join(scene["voice_text"].strip() for scene in scenes)
+        if is_carousel:
+            content["story"] = " ".join(scene["text"].strip() for scene in scenes)
 
     @staticmethod
     def _requested_outputs(request: GenerateRequest) -> list[dict[str, str]]:
@@ -448,76 +477,6 @@ class AIService:
             else:
                 output_data["scenes"] = normalized_scenes
 
-            # Enforce carousel formatting rules after AI normalization
-            if is_carousel_output:
-                carousel_scenes = [
-                    scene
-                    for scene in normalized_scenes
-                    if (scene.get("media_type") or "image").lower() == "image"
-                ]
-
-                if len(carousel_scenes) > 8:
-                    carousel_scenes = carousel_scenes[:8]
-
-                # Some providers occasionally ignore the requested scene count.
-                # Keep carousel generation usable by constructing meaningful
-                # cover/value/CTA slides from the response instead of failing.
-                fallback_texts = [
-                    (output_data or ai_data).get("hook"),
-                    (output_data or ai_data).get("title"),
-                    (output_data or ai_data).get("description") or (output_data or ai_data).get("script"),
-                    (output_data or ai_data).get("cta"),
-                ]
-                for fallback_text in fallback_texts:
-                    if len(carousel_scenes) >= 3:
-                        break
-                    text = re.sub(r"\s+", " ", str(fallback_text or "")).strip()
-                    if not text or any(text == str(item.get("text", "")).strip() for item in carousel_scenes):
-                        continue
-                    keyword = " ".join(text.split()[:5]) or "inspirational lifestyle"
-                    carousel_scenes.append({
-                        "scene": len(carousel_scenes) + 1,
-                        "text": text,
-                        "keyword": keyword,
-                        "image_prompt": keyword,
-                        "video_prompt": keyword,
-                        "duration": 5,
-                        "media_type": "image",
-                        "platform": request.platforms[0],
-                    })
-
-                while carousel_scenes and len(carousel_scenes) < 3:
-                    source = carousel_scenes[-1]
-                    carousel_scenes.append({
-                        **source,
-                        "scene": len(carousel_scenes) + 1,
-                    })
-
-                if output_data is ai_data:
-                    ai_data["scenes"] = carousel_scenes
-                else:
-                    output_data["scenes"] = carousel_scenes
-
-            # Generate a short carousel story if missing
-            if is_carousel_output:
-                target_story = ai_data if output_data is ai_data else output_data
-                if not target_story.get("story"):
-                    scene_texts = [
-                        str(scene.get("text", "")).strip()
-                        for scene in (target_story.get("scenes") or [])
-                        if scene.get("text")
-                    ]
-                    if scene_texts:
-                        target_story["story"] = " ".join(scene_texts[:8])
-                    else:
-                        target_story["story"] = target_story.get("description", "")
-
-                if len(target_story.get("scenes") or []) < 3:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="The AI provider returned no usable carousel image scenes. Please generate again."
-                    )
-
             # =====================================================
             # Validate Required Fields
             # =====================================================
@@ -746,6 +705,7 @@ class AIService:
                             "scene": item.get("scene_number") or item.get("scene"),
                             "title": item.get("title"),
                             "text": item.get("text"),
+                            "voice_text": item.get("voice_text"),
                             "keyword": item.get("keyword"),
                             "image_prompt": item.get("image_prompt"),
                             "video_prompt": item.get("video_prompt"),

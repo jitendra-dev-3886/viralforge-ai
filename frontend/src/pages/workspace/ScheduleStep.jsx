@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { createSchedule, getSchedules } from "../../api/schedule";
+import AutoPostForm from "../settings/AutoPostForm";
 import { updateContent } from "../../api/content";
 import { assertSuccess, errorMessage } from "./workflow";
 
@@ -15,7 +16,7 @@ export default function ScheduleStep({ content, busy, run, refresh }) {
         return () => { active = false; };
     }, [content.id]);
     return <div className="space-y-5">
-        <div><h2 className="text-xl font-bold">Ready to publish?</h2><p className="mt-1 text-sm text-slate-500">Approve the finished content and add it to your manual publishing queue. Scheduling does not post automatically.</p></div>
+        <div><h2 className="text-xl font-bold">Ready to publish?</h2><p className="mt-1 text-sm text-slate-500">Approve your finished content, then schedule automatic posting to a connected account or save a manual reminder.</p></div>
         <div className="rounded-2xl bg-slate-50 p-5"><h3 className="font-semibold">{content.title}</h3><p className="mt-1 text-sm text-slate-600">{content.platform} · {content.content_type} · {content.status}</p><p className="mt-4 whitespace-pre-wrap text-sm">{content.caption}</p></div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         {scheduled.length > 0 ? <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">Already scheduled: {scheduled.map((item) => new Date(item.scheduled_at).toLocaleString()).join(", ")}. <Link to="/scheduler" className="underline">Manage in Scheduler</Link>.</div> : <fieldset disabled={busy} className="space-y-4">
@@ -28,6 +29,8 @@ export default function ScheduleStep({ content, busy, run, refresh }) {
                 setScheduled([result.schedule]);
             })} className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Schedule manually</button>
         </fieldset>}
+        {content.status === "approved" && <AutoPostForm content={content} disabled={busy} onScheduled={async schedule => setScheduled(current => [...current, schedule])} />}
+        <Link to="/scheduler" className="inline-block text-sm font-semibold text-indigo-600 underline">Open posting history</Link>
         <Link to="/export" className="inline-block text-sm font-semibold text-indigo-600 underline">Open Export Center</Link>
     </div>;
 }

@@ -15,6 +15,7 @@ from app.models.media import Media
 from app.models.niche import Niche
 from app.models import Schedule, Image, Voice, Scene, Subscription, Usage, ApiSetting, SocialAccount, Trend
 from app.models.billing import ExportUsage, PlanGrant
+from app.models.publishing import PublishingAccount, PublishingOAuthState, PublishJob, PublishEvent
 
 router = APIRouter(prefix="/api/admin", tags=["Super Admin"])
 
@@ -70,11 +71,14 @@ def delete_user(target_id: int, db: Session = Depends(get_db), admin: User = Dep
         raise HTTPException(status_code=409, detail="This account has issued plan grants. Disable it instead to preserve the grant history.")
     if db.query(ExportUsage.id).filter(ExportUsage.user_id == target_id, ExportUsage.status == "reserved").first():
         raise HTTPException(status_code=409, detail="This user has an export in progress. Wait for it to finish before deleting the account.")
+    if db.query(PublishJob.id).filter(PublishJob.user_id == target_id, PublishJob.status.in_(["publishing", "processing"])).first():
+        raise HTTPException(status_code=409, detail="This user has a post in progress. Wait for its result before deleting the account.")
     try:
         # Delete children first, including records without User ORM relationships.
         # Core deletes avoid ORM attempts to null non-nullable ownership columns.
         # Stored files are retained, matching the existing project deletion policy.
-        for model in (Schedule, Image, Voice, Scene, Media, Content, Project, Brand,
+        db.execute(PublishEvent.__table__.delete().where(PublishEvent.job_id.in_(db.query(PublishJob.id).filter(PublishJob.user_id == target_id))))
+        for model in (PublishJob, PublishingOAuthState, PublishingAccount, Schedule, Image, Voice, Scene, Media, Content, Project, Brand,
                       ExportUsage, PlanGrant, Subscription, Usage, ApiSetting,
                       SocialAccount, Trend, Niche):
             table = model.__table__

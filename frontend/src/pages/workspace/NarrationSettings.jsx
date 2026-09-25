@@ -8,7 +8,7 @@ export default function NarrationSettings({ content, busy, run, refresh }) {
         const current = await loadWorkspaceContent(content.id);
         assertSuccess(await updateContent(content.id, { generation_config: {
             ...current.generation_config,
-            audio: { ...current.generation_config?.audio, voice_enabled: voiceEnabled, music_id: null, license_note: "" },
+            audio: { ...current.generation_config?.audio, voice_enabled: voiceEnabled },
         } }));
         await refresh();
     };
