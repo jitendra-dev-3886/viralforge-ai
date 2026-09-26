@@ -3,7 +3,54 @@
 from __future__ import annotations
 
 import math
+import re
+from urllib.parse import unquote, urlparse
 from typing import Any, Callable, Iterable
+
+
+def best_for_query(items, dimensions, *, query, media_type, orientation):
+    """Require descriptive metadata overlap before considering crop/resolution.
+
+    This is a conservative text check, not visual recognition. Missing or
+    unrelated metadata is rejected so the other stock provider can be tried.
+    """
+    ignored = set("a an the of on in at to with and or for from by is are stock photo video image footage clip person people man woman hands background close up beautiful shot view morning evening daytime cinematic lighting sunlight sunlit softly natural".split())
+
+    def terms(text):
+        words = set()
+        for word in re.findall(r"[a-z]+", str(text).lower()):
+            if word in ignored or len(word) < 3:
+                continue
+            if word.endswith("s") and not word.endswith("ss"):
+                word = word[:-1]
+            if word.endswith("ing") and len(word) > 5:
+                word = word[:-3]
+            elif word.endswith("ion") and len(word) > 6:
+                word = word[:-3]
+            if word.endswith("e") and len(word) > 4:
+                word = word[:-1]
+            words.add(word)
+        return words
+
+    required = terms(query)
+    if not required:
+        return None
+    ranked = []
+    for index, item in enumerate(items):
+        # Pexels videos expose descriptive page slugs, photos also have alt;
+        # Pixabay exposes tags. Never use the download URL or photographer name.
+        page = item.get("pageURL") or item.get("url") or ""
+        metadata = " ".join(str(item.get(key) or "") for key in ("alt", "tags", "title"))
+        metadata += " " + unquote(urlparse(page).path).replace("-", " ")
+        matched = required & terms(metadata)
+        # Partial overlap can omit the actual subject (e.g. "solar" in
+        # "solar panel installation") while accepting an unrelated asset.
+        if matched != required:
+            continue
+        fit = dimension_score(*dimensions(item), media_type=media_type, orientation=orientation)
+        if math.isfinite(fit):
+            ranked.append((fit, -index, item))
+    return max(ranked, key=lambda row: row[:2])[2] if ranked else None
 
 
 def normalise_orientation(value: str | None) -> str:

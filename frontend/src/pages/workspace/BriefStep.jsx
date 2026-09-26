@@ -1,6 +1,7 @@
 import UserProviderSelector from "../settings/UserProviderSelector";
 import { Link } from "react-router-dom";
 import VisualStyleSelector from "../ai/VisualStyleSelector";
+import ContentGoalSelector from "../ai/ContentGoalSelector";
 import TrendingTopics from "../ai/TrendingTopics";
 import { assetUrl } from "../../api/axios";
 import { FORMATS, isVideoFormat } from "./workflow";
@@ -17,7 +18,7 @@ export default function BriefStep({ brief, onChange, projects, niches, brand, bu
             <label className="text-sm font-medium">Platform<select className={field} value={brief.platform} onChange={(e) => onChange({ ...brief, platform: e.target.value, format: FORMATS[e.target.value][0] })}>{Object.keys(FORMATS).map((item) => <option key={item}>{item}</option>)}</select></label>
             <label className="text-sm font-medium">Format<select className={field} value={brief.format} onChange={(e) => update("format", e.target.value)}>{FORMATS[brief.platform].map((item) => <option key={item}>{item}</option>)}</select></label>
             <div className="sm:col-span-2">
-                <TrendingTopics niche={brief.niche} value={brief.topic} onSelect={(topic) => update("topic", topic)} title="Choose a topic" />
+                <TrendingTopics niche={brief.niche} projectId={brief.projectId} platform={brief.platform} contentType={brief.format} value={brief.topic} onSelect={(topic) => update("topic", topic)} title="Choose a topic" />
                 <label className="mt-3 block text-sm font-medium">Selected topic / brief<textarea rows={3} className={field} value={brief.topic} onChange={(e) => update("topic", e.target.value)} placeholder="Choose a suggestion above or enter your own topic" /></label>
             </div>
             <label className="text-sm font-medium">Language<select className={field} value={brief.language} onChange={(e) => update("language", e.target.value)}>{["English", "Hindi", "Hinglish"].map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -25,6 +26,7 @@ export default function BriefStep({ brief, onChange, projects, niches, brand, bu
             {!["Quote", "Post", "Community Post"].includes(brief.format) && <label className="text-sm font-medium">Scenes / slides<select className={field} value={brief.scenes} onChange={(e) => update("scenes", Number(e.target.value))}>{[3, 5, 7].map((item) => <option key={item}>{item}</option>)}</select></label>}
             {isVideoFormat(brief.format) && <label className="text-sm font-medium">Target duration<select className={field} value={brief.duration} onChange={(e) => update("duration", Number(e.target.value))}>{[15, 30, 60].map((item) => <option key={item} value={item}>{item} seconds</option>)}</select></label>}
             <UserProviderSelector value={brief.provider} onChange={(provider) => update("provider", provider)} disabled={busy} />
+            <ContentGoalSelector value={brief.contentGoal} onChange={(value) => update("contentGoal", value)} disabled={busy} />
         </fieldset>
         <VisualStyleSelector platform={brief.platform} value={brief.visualStyle} onChange={(value) => update("visualStyle", value)} topic={brief.topic} brandName={brand?.name} logo={assetUrl(brand?.logo)} disabled={busy} />
         {hasContent && <p className="text-sm text-slate-500">Generating creates a new content item. Your current saved item stays in History.</p>}

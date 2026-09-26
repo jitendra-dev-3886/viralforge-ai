@@ -31,6 +31,7 @@ class GenerateRequest(BaseModel):
     scene_count: Optional[int] = Field(None, ge=1, le=12)
     total_duration: Optional[int] = Field(None, ge=5, le=180)
     style: Optional[str] = Field(None, max_length=50)
+    content_goal: Optional[Literal["Reach", "Shares", "Saves", "Comments", "Followers"]] = None
     visual_style: Optional[Literal["minimal", "bold", "cinematic", "professional", "playful", "scrapbook"]] = None
 
 

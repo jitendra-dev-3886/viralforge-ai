@@ -27,7 +27,8 @@ export default function ScheduleStep({ content, busy, run, refresh }) {
                 if (!Number.isFinite(date.getTime()) || date <= new Date()) throw new Error("Choose a future publishing time.");
                 const result = assertSuccess(await createSchedule({ project_id: content.project_id, content_id: content.id, platform: content.platform, scheduled_at: date.toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
                 setScheduled([result.schedule]);
-            })} className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Schedule manually</button>
+            })} className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Save reminder — publish manually</button>
+            <p className="text-xs text-slate-500">A reminder does not publish your content. Use Automatic posting below to publish at the selected time.</p>
         </fieldset>}
         {content.status === "approved" && <AutoPostForm content={content} disabled={busy} onScheduled={async schedule => setScheduled(current => [...current, schedule])} />}
         <Link to="/scheduler" className="inline-block text-sm font-semibold text-indigo-600 underline">Open posting history</Link>

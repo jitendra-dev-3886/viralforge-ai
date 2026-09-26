@@ -40,6 +40,8 @@ class ContentService:
                 "status": scene.status, "media_id": scene.media_id,
                 "media_url": scene.media.file_url if scene.media else None,
                 "media_provider": scene.media.provider if scene.media else None,
+                "media_match_level": next((level for level in ("topic", "niche", "project")
+                                           if scene.media and (scene.media.title or "").startswith(f"Scene {scene.scene_number} [{level}]:")), None),
             } for scene in sorted(content.scenes, key=lambda item: item.scene_number)],
         }
 
@@ -258,6 +260,14 @@ class ContentService:
             exclude_unset=True,
             exclude_none=True,
         )
+
+        if "description" in update_data:
+            description = update_data.pop("description")
+            update_data["generation_config"] = {
+                **(content.generation_config or {}),
+                **(update_data.get("generation_config") or {}),
+                "description": description,
+            }
 
         for key, value in update_data.items():
             setattr(content, key, value)

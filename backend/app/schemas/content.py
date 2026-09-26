@@ -45,6 +45,8 @@ class ContentCreate(BaseModel):
 
 class ContentUpdate(BaseModel):
 
+    description: Optional[str] = None
+
     title: Optional[str] = None
 
     hook: Optional[str] = None

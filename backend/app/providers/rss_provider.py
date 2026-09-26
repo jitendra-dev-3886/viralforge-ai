@@ -1,4 +1,6 @@
-import feedparser
+from xml.etree import ElementTree
+
+import requests
 
 
 class RSSProvider:
@@ -13,15 +15,23 @@ class RSSProvider:
 
     ]
 
-    def get_trending(self):
+    def get_trending(self, query=None, language="en", limit=20):
 
         news = []
 
-        for url in self.URLS:
+        urls = ["https://news.google.com/rss/search"] if query else self.URLS
+        params = {"q": f"{query} when:7d", "hl": f"{language}-IN", "gl": "IN", "ceid": f"IN:{language}"} if query else None
+        for url in urls:
 
-            feed = feedparser.parse(url)
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                feed = ElementTree.fromstring(response.content)
+                for item in feed.findall(".//item")[:limit]:
+                    title = (item.findtext("title") or "").strip()
+                    if title:
+                        news.append(title)
+            except (requests.RequestException, ElementTree.ParseError):
+                continue
 
-            for item in feed.entries[:10]:
-                news.append(item.title)
-
-        return news
+        return news[:limit]

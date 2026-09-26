@@ -180,6 +180,14 @@ class RenderService:
         # Render
         # =====================================================
 
+        # Use the actual content order, including sequences with deleted scenes.
+        has_previous_scene = db.query(Scene.id).filter(
+            Scene.project_id == scene.project_id,
+            Scene.content_id == scene.content_id,
+            Scene.user_id == user_id,
+            Scene.scene_number < scene.scene_number,
+        ).first() is not None
+
         render_result = FFmpegClient.render_media(
             video_path=abs_video_path,
             audio_path=abs_audio_path,
@@ -198,6 +206,7 @@ class RenderService:
             username_x_pct=username_position.get("x"),
             username_y_pct=username_position.get("y"),
             transition=scene.transition or "fade",
+            entrance_transition=has_previous_scene,
             visual_style=visual_style,
             overlay_opacity=generation_config.get("overlay_opacity"),
             as_image=as_image,

@@ -169,7 +169,7 @@ function Workspace({ storageKey }) {
                 <section hidden={step !== 2}><MediaStep content={content} media={media} busy={isBusy} run={run} refresh={refresh} onUploadBusyChange={setUploadBusy} /></section>
                 <section hidden={step !== 3}><VoiceStep key={content.id} content={content} voices={voices} busy={isBusy} run={run} refreshVoices={refreshVoices} refresh={refresh} /></section>
                 <section hidden={step !== 4}><h2 className="text-xl font-bold">Preview, style and export</h2><p className="mt-1 text-sm text-slate-500">Choose a design, adjust your overlays, then export images or merge a video. Keep this workspace open until the export finishes.</p><fieldset disabled={Boolean(busy || restoring)}><ContentFinisher key={content.id} content={content} projectId={content.project_id} onBusyChange={setExportBusy} /></fieldset></section>
-                <section hidden={step !== 5}><ScheduleStep key={content.id} content={content} busy={isBusy} run={run} refresh={refresh} /></section>
+                {step === 5 && <section><ScheduleStep key={content.id} content={content} busy={isBusy} run={run} refresh={refresh} /></section>}
             </>}
         </div>
         {content && <footer className="flex flex-wrap justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">

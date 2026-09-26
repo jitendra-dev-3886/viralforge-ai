@@ -1,4 +1,7 @@
 import os
+import json
+from urllib.parse import urlencode
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -7,7 +10,7 @@ from app.database import get_db
 from app.core.security import get_current_user_id
 from app.models.publishing import PublishingAccount, PublishJob
 from app.models.schedule import Schedule
-from app.services.publishing_accounts import PublishingAccounts, ProviderError
+from app.services.publishing_accounts import PublishingAccounts, ProviderError, cipher
 from app.services.publishing_worker import event
 
 router = APIRouter(prefix="/api/social-connections", tags=["Social publishing"])
@@ -31,7 +34,27 @@ def list_connections(db: Session = Depends(get_db), user_id: int = Depends(get_c
 @router.post("/{provider}/connect")
 def connect(provider: str, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     url, browser = PublishingAccounts.start(db, user_id, provider)
-    response = JSONResponse({"authorization_url": url})
+    # Set the binding cookie during top-level navigation on the callback host.
+    # A cookie created by a localhost API request cannot reach an HTTPS tunnel.
+    ticket = cipher().encrypt(json.dumps({"provider": provider, "url": url, "browser": browser}).encode()).decode()
+    start_url = PublishingAccounts.redirect_uri(provider).rsplit("/", 1)[0] + "/authorize"
+    response = JSONResponse({"authorization_url": start_url + "?" + urlencode({"ticket": ticket})})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/{provider}/authorize")
+def authorize(provider: str, ticket: str):
+    try:
+        data = json.loads(cipher().decrypt(ticket.encode(), ttl=120))
+        if data["provider"] != provider or provider not in PublishingAccounts.SCOPES:
+            raise ValueError()
+    except (InvalidToken, ValueError, KeyError, TypeError):
+        raise HTTPException(400, "Connection link expired or is invalid. Start connecting again.") from None
+    response = RedirectResponse(data["url"], status_code=303)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    browser = data["browser"]
     response.set_cookie(f"publishing_{provider}", browser, httponly=True, secure=PublishingAccounts.redirect_uri(provider).startswith("https:"), samesite="lax", max_age=600, path=f"/api/social-connections/{provider}/callback")
     return response
 

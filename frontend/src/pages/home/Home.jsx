@@ -1,41 +1,367 @@
 ﻿import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, BarChart3, Check, FileText, Image, Layers, Menu, Moon, Play, Sparkles, Sun, WandSparkles, X } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  BarChart3,
+  Check,
+  FileText,
+  Image,
+  Layers,
+  Menu,
+  Moon,
+  Play,
+  Sparkles,
+  Sun,
+  WandSparkles,
+  X,
+} from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import "./home.css";
 
 const formats = [
-  { name: "Social post", icon: FileText, title: "Big ideas. A little more headspace.", text: "Meet your new creative sidekick. Turn the ideas in your notes into content worth sharing. Less busywork, more room for your next big thing.", note: "#WorkSmarter #CreateMore #YourNextChapter" },
-  { name: "Reel script", icon: Play, title: "Your next idea deserves the spotlight.", text: "0–3s · Open with a desk full of sticky notes.\n3–10s · One idea becomes a complete campaign.\n10–15s · Make room for what you do best.", note: "15-second reel · Product launch · Three scenes" },
-  { name: "Blog outline", icon: Layers, title: "From scattered ideas to a clear content plan.", text: "01 / Find the story your audience needs\n02 / Build a campaign around one strong idea\n03 / Adapt your message for every channel", note: "How-to guide · Three sections · Creator workflow" },
+  {
+    name: "Social post",
+    icon: FileText,
+    title: "Big ideas. A little more headspace.",
+    text: "Meet your new creative sidekick. Turn the ideas in your notes into content worth sharing. Less busywork, more room for your next big thing.",
+    note: "#WorkSmarter #CreateMore #YourNextChapter",
+  },
+  {
+    name: "Reel script",
+    icon: Play,
+    title: "Your next idea deserves the spotlight.",
+    text: "0–3s · Open with a desk full of sticky notes.\n3–10s · One idea becomes a complete campaign.\n10–15s · Make room for what you do best.",
+    note: "15-second reel · Product launch · Three scenes",
+  },
+  {
+    name: "Blog outline",
+    icon: Layers,
+    title: "From scattered ideas to a clear content plan.",
+    text: "01 / Find the story your audience needs\n02 / Build a campaign around one strong idea\n03 / Adapt your message for every channel",
+    note: "How-to guide · Three sections · Creator workflow",
+  },
 ];
 const features = [
-  { icon: WandSparkles, label: "AI writing", title: "Find your next great idea", text: "Move past the blank page with AI-assisted briefs, captions, and long-form content." },
-  { icon: Image, label: "Creative studio", title: "Make your story stand out", text: "Bring your concepts to life with images and reel scripts made for your next campaign." },
-  { icon: BarChart3, label: "Campaign workspace", title: "Give your content direction", text: "Keep your projects, campaigns, and performance insights together in one workspace." },
+  {
+    icon: WandSparkles,
+    label: "AI writing",
+    title: "Find your next great idea",
+    text: "Move past the blank page with AI-assisted briefs, captions, and long-form content.",
+  },
+  {
+    icon: Image,
+    label: "Creative studio",
+    title: "Make your story stand out",
+    text: "Bring your concepts to life with images and reel scripts made for your next campaign.",
+  },
+  {
+    icon: BarChart3,
+    label: "Campaign workspace",
+    title: "Give your content direction",
+    text: "Keep your projects, campaigns, and performance insights together in one workspace.",
+  },
 ];
 function Brand() {
-  return <Link className="home-brand" to="/" aria-label="ViralForge AI home"><span><Sparkles size={20}/></span>ViralForge <strong>AI</strong></Link>;
+  return (
+    <Link className="home-brand" to="/" aria-label="ViralForge AI home">
+      <span>
+        <Sparkles size={20} />
+      </span>
+      ViralForge <strong>AI</strong>
+    </Link>
+  );
 }
 export default function Home() {
   const { dark, setDark } = useTheme();
   const [menu, setMenu] = useState(false);
   const [format, setFormat] = useState(0);
   const preview = formats[format];
-  return <div className="home-page">
-    <a className="home-skip" href="#main-content">Skip to content</a>
-    <header className="home-header"><div className="home-container home-nav"><Brand/>
-      <nav className={`home-links ${menu ? "is-open" : ""}`} aria-label="Main navigation">{[["Features", "features"], ["How it works", "how-it-works"], ["Explore the studio", "workspace"]].map(([label, id]) => <a key={id} href={`#${id}`} onClick={() => setMenu(false)}>{label}</a>)}</nav>
-      <div className="home-actions"><button className="home-icon" onClick={() => setDark(!dark)} aria-label={`Switch to ${dark ? "light" : "dark"} theme`}>{dark ? <Sun size={18}/> : <Moon size={18}/>}</button><Link className="home-signin" to="/login">Sign in</Link><Link className="home-button home-button-small" to="/register">Start free <ArrowUpRight size={15}/></Link><button className="home-icon home-menu" onClick={() => setMenu(!menu)} aria-label={menu ? "Close navigation" : "Open navigation"} aria-expanded={menu}>{menu ? <X size={20}/> : <Menu size={20}/>}</button></div>
-    </div></header>
-    <main id="main-content">
-      <section className="home-hero"><div className="home-container home-hero-grid">
-        <div><p className="home-eyebrow"><i/> YOUR NEXT CHAPTER STARTS HERE</p><h1>One idea.<br/>Endless <em>possibilities.</em></h1><p className="home-lead">Your ideas deserve more than a draft folder. Turn them into scroll-stopping content with an AI workspace built for your creative flow.</p><div className="home-hero-actions"><Link className="home-button" to="/register">Start creating free <ArrowRight size={17}/></Link><a className="home-button home-outline" href="#workspace"><Play size={15}/> Explore the studio</a></div><div className="home-notes"><span><Check size={14}/> One connected workspace</span><span><Check size={14}/> Made for your creative flow</span></div><div className="home-creators"><div aria-hidden="true"><span>CR</span><span>MK</span><span>AL</span></div><p>For the creators, the builders,<br/><strong>and the “I have an idea” people.</strong></p></div></div>
-        <div className="home-studio" id="workspace"><div className="home-studio-bar"><span><Sparkles size={16}/> Your creative workspace</span><small>INTERACTIVE PREVIEW</small></div><div className="home-studio-body"><div className="home-studio-heading"><div><p className="home-label">LET’S MAKE SOMETHING GREAT</p><h2>What’s your next big idea?</h2></div><WandSparkles size={24}/></div><div className="home-prompt"><Sparkles size={17}/><p>Create a launch campaign for our new AI productivity tool.</p></div><p className="home-format-label">One idea, a whole new set of possibilities</p><div className="home-formats" role="group" aria-label="Preview content format">{formats.map(({name, icon: Icon}, index) => <button key={name} aria-pressed={format === index} onClick={() => setFormat(index)}><Icon size={14}/>{name}</button>)}</div><div className="home-output" aria-live="polite"><div className="home-output-label"><span><i/> EXAMPLE OUTPUT</span><span><Check size={12}/> Draft ready</span></div><h3>{preview.title}</h3><p>{preview.text}</p><small>{preview.note}</small></div><div className="home-studio-footer"><span><Layers size={14}/> Your idea. Your voice. More possibilities.</span><Link to="/register" aria-label="Create your own campaign"><ArrowRight size={18}/></Link></div></div><div className="home-studio-caption"><span><Check size={17}/></span><p>Less time switching tools.<strong>More time making your mark.</strong></p><Sparkles size={20}/></div></div>
-      </div><div className="home-container home-strip"><p>FROM YOUR FIRST SPARK TO YOUR NEXT CAMPAIGN</p><div><span><FileText size={16}/> Social posts</span><span><Play size={16}/> Reel scripts</span><span><Image size={16}/> AI images</span><span><Layers size={16}/> Blog content</span></div></div></section>
-      <section className="home-container home-section" id="features"><div className="home-section-heading"><div><p className="home-eyebrow">LESS BUSYWORK. MORE BRILLIANT WORK.</p><h2>A little AI.<br/>A lot more you.</h2></div><p>Everything you need to turn inspiration into a consistent creative practice. All in one place.</p></div><div className="home-features">{features.map(({icon: Icon, label, title, text}, index) => <article key={title}><span className={`home-feature-icon tone-${index}`}><Icon size={24}/></span><p className="home-label">{label}</p><h3>{title}</h3><p>{text}</p><Link to="/register">Start exploring <ArrowUpRight size={16}/></Link></article>)}</div></section>
-      <section className="home-workflow" id="how-it-works"><div className="home-container home-section"><div className="home-section-heading"><div><p className="home-eyebrow">YOUR IDEA, TAKEN FURTHER</p><h2>From “what if” to what’s next.</h2></div><Link className="home-text-link" to="/register">Find your creative flow <ArrowRight size={17}/></Link></div><div className="home-steps">{[{title: "Bring the spark", text: "Start with a topic, a product, or that idea you can’t stop thinking about."}, {title: "Make it your own", text: "Explore AI-assisted drafts and visuals, then shape them into your voice."}, {title: "Build on your best work", text: "Bring your content together into campaigns and keep your next project moving."}].map((step, index) => <article key={step.title}><div className="home-step-number">0{index + 1}<ArrowRight size={16}/></div><h3>{step.title}</h3><p>{step.text}</p></article>)}</div></div></section>
-      <section className="home-container home-final-wrap"><div className="home-final"><div><p className="home-eyebrow">YOU BRING THE IDEAS. WE’LL BRING THE SPARK.</p><h2>Your next great thing<br/>starts with one idea.</h2><p>Give it a workspace where it can grow.</p></div><Link className="home-button" to="/register">Let’s start creating <ArrowUpRight size={18}/></Link></div></section>
-    </main><footer className="home-container home-footer"><Brand/><p>© {new Date().getFullYear()} ViralForge AI. Made for what’s next.</p><div><a href="#features">Features</a><Link to="/login">Sign in <ArrowUpRight size={13}/></Link></div></footer>
-  </div>;
+  return (
+    <div className="home-page">
+      <a className="home-skip" href="#main-content">
+        Skip to content
+      </a>
+      <header className="home-header">
+        <div className="home-container home-nav">
+          <Brand />
+          <nav
+            className={`home-links ${menu ? "is-open" : ""}`}
+            aria-label="Main navigation"
+          >
+            {[
+              ["Features", "features"],
+              ["How it works", "how-it-works"],
+              ["Explore the studio", "workspace"],
+            ].map(([label, id]) => (
+              <a key={id} href={`#${id}`} onClick={() => setMenu(false)}>
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="home-actions">
+            <button
+              className="home-icon"
+              onClick={() => setDark(!dark)}
+              aria-label={`Switch to ${dark ? "light" : "dark"} theme`}
+            >
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <Link className="home-signin" to="/login">
+              Sign in
+            </Link>
+            <Link className="home-button home-button-small" to="/register">
+              Start free <ArrowUpRight size={15} />
+            </Link>
+            <button
+              className="home-icon home-menu"
+              onClick={() => setMenu(!menu)}
+              aria-label={menu ? "Close navigation" : "Open navigation"}
+              aria-expanded={menu}
+            >
+              {menu ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+      </header>
+      <main id="main-content">
+        <section className="home-hero">
+          <div className="home-container home-hero-grid">
+            <div>
+              <p className="home-eyebrow">
+                <i /> YOUR NEXT CHAPTER STARTS HERE
+              </p>
+              <h1>
+                One idea.
+                <br />
+                Endless <em>possibilities.</em>
+              </h1>
+              <p className="home-lead">
+                Your ideas deserve more than a draft folder. Turn them into
+                scroll-stopping content with an AI workspace built for your
+                creative flow.
+              </p>
+              <div className="home-hero-actions">
+                <Link className="home-button" to="/register">
+                  Start creating free <ArrowRight size={17} />
+                </Link>
+                <a className="home-button home-outline" href="#workspace">
+                  <Play size={15} /> Explore the studio
+                </a>
+              </div>
+              <div className="home-notes">
+                <span>
+                  <Check size={14} /> One connected workspace
+                </span>
+                <span>
+                  <Check size={14} /> Made for your creative flow
+                </span>
+              </div>
+              <div className="home-creators">
+                <div aria-hidden="true">
+                  <span>CR</span>
+                  <span>MK</span>
+                  <span>AL</span>
+                </div>
+                <p>
+                  For the creators, the builders,
+                  <br />
+                  <strong>and the “I have an idea” people.</strong>
+                </p>
+              </div>
+            </div>
+            <div className="home-studio" id="workspace">
+              <div className="home-studio-bar">
+                <span>
+                  <Sparkles size={16} /> Your creative workspace
+                </span>
+                <small>INTERACTIVE PREVIEW</small>
+              </div>
+              <div className="home-studio-body">
+                <div className="home-studio-heading">
+                  <div>
+                    <p className="home-label">LET’S MAKE SOMETHING GREAT</p>
+                    <h2>What’s your next big idea?</h2>
+                  </div>
+                  <WandSparkles size={24} />
+                </div>
+                <div className="home-prompt">
+                  <Sparkles size={17} />
+                  <p>
+                    Create a launch campaign for our new AI productivity tool.
+                  </p>
+                </div>
+                <p className="home-format-label">
+                  One idea, a whole new set of possibilities
+                </p>
+                <div
+                  className="home-formats"
+                  role="group"
+                  aria-label="Preview content format"
+                >
+                  {formats.map(({ name, icon: Icon }, index) => (
+                    <button
+                      key={name}
+                      aria-pressed={format === index}
+                      onClick={() => setFormat(index)}
+                    >
+                      <Icon size={14} />
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <div className="home-output" aria-live="polite">
+                  <div className="home-output-label">
+                    <span>
+                      <i /> EXAMPLE OUTPUT
+                    </span>
+                    <span>
+                      <Check size={12} /> Draft ready
+                    </span>
+                  </div>
+                  <h3>{preview.title}</h3>
+                  <p>{preview.text}</p>
+                  <small>{preview.note}</small>
+                </div>
+                <div className="home-studio-footer">
+                  <span>
+                    <Layers size={14} /> Your idea. Your voice. More
+                    possibilities.
+                  </span>
+                  <Link to="/register" aria-label="Create your own campaign">
+                    <ArrowRight size={18} />
+                  </Link>
+                </div>
+              </div>
+              <div className="home-studio-caption">
+                <span>
+                  <Check size={17} />
+                </span>
+                <p>
+                  Less time switching tools.
+                  <strong>More time making your mark.</strong>
+                </p>
+                <Sparkles size={20} />
+              </div>
+            </div>
+          </div>
+          <div className="home-container home-strip">
+            <p>FROM YOUR FIRST SPARK TO YOUR NEXT CAMPAIGN</p>
+            <div>
+              <span>
+                <FileText size={16} /> Social posts
+              </span>
+              <span>
+                <Play size={16} /> Reel scripts
+              </span>
+              <span>
+                <Image size={16} /> AI images
+              </span>
+              <span>
+                <Layers size={16} /> Blog content
+              </span>
+            </div>
+          </div>
+        </section>
+        <section className="home-container home-section" id="features">
+          <div className="home-section-heading">
+            <div>
+              <p className="home-eyebrow">
+                LESS BUSYWORK. MORE BRILLIANT WORK.
+              </p>
+              <h2>
+                A little AI.
+                <br />A lot more you.
+              </h2>
+            </div>
+            <p>
+              Everything you need to turn inspiration into a consistent creative
+              practice. All in one place.
+            </p>
+          </div>
+          <div className="home-features">
+            {features.map(({ icon: Icon, label, title, text }, index) => (
+              <article key={title}>
+                <span className={`home-feature-icon tone-${index}`}>
+                  <Icon size={24} />
+                </span>
+                <p className="home-label">{label}</p>
+                <h3>{title}</h3>
+                <p>{text}</p>
+                <Link to="/register">
+                  Start exploring <ArrowUpRight size={16} />
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="home-workflow" id="how-it-works">
+          <div className="home-container home-section">
+            <div className="home-section-heading">
+              <div>
+                <p className="home-eyebrow">YOUR IDEA, TAKEN FURTHER</p>
+                <h2>From “what if” to what’s next.</h2>
+              </div>
+              <Link className="home-text-link" to="/register">
+                Find your creative flow <ArrowRight size={17} />
+              </Link>
+            </div>
+            <div className="home-steps">
+              {[
+                {
+                  title: "Bring the spark",
+                  text: "Start with a topic, a product, or that idea you can’t stop thinking about.",
+                },
+                {
+                  title: "Make it your own",
+                  text: "Explore AI-assisted drafts and visuals, then shape them into your voice.",
+                },
+                {
+                  title: "Build on your best work",
+                  text: "Bring your content together into campaigns and keep your next project moving.",
+                },
+              ].map((step, index) => (
+                <article key={step.title}>
+                  <div className="home-step-number">
+                    0{index + 1}
+                    <ArrowRight size={16} />
+                  </div>
+                  <h3>{step.title}</h3>
+                  <p>{step.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+        <section className="home-container home-final-wrap">
+          <div className="home-final">
+            <div>
+              <p className="home-eyebrow">
+                YOU BRING THE IDEAS. WE’LL BRING THE SPARK.
+              </p>
+              <h2>
+                Your next great thing
+                <br />
+                starts with one idea.
+              </h2>
+              <p>Give it a workspace where it can grow.</p>
+            </div>
+            <Link className="home-button" to="/register">
+              Let’s start creating <ArrowUpRight size={18} />
+            </Link>
+          </div>
+        </section>
+      </main>
+      <footer className="home-container home-footer">
+        <Brand />
+        <p>© {new Date().getFullYear()} ViralForge AI. Made for what’s next.</p>
+        <div>
+          <a href="#features">Features</a>
+          <Link to="/login">
+            Sign in <ArrowUpRight size={13} />
+          </Link>
+        </div>
+      </footer>
+    </div>
+  );
 }

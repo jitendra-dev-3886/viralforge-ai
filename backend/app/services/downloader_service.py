@@ -1,4 +1,5 @@
 import os
+import re
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -8,9 +9,48 @@ from app.models.media import Media
 
 from app.core.pexels_client import PexelsClient
 from app.core.pixabay_client import PixabayClient
+from app.config.prompt_config import VISUAL_NICHE_BOUNDARIES
 
 
 class DownloaderService:
+
+    @staticmethod
+    def _search_queries(scene, keyword):
+        """Try scene/topic, then niche, then project; never use unrelated defaults."""
+        content = scene.content
+        config = getattr(content, "generation_config", None) or {}
+        project = getattr(scene, "project", None)
+        brand = getattr(project, "brand", None)
+        normalize = lambda value: re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+        topic = config.get("topic") or getattr(content, "title", "")
+        topic_queries = [keyword]
+        if len(keyword.split()) > 2:
+            topic_queries.append(" ".join(keyword.split()[:2]))
+        topic_queries.append(topic)
+        niche = config.get("niche") or getattr(project, "niche", "") or getattr(brand, "niche", "")
+        scope = next((scope for name, scope in VISUAL_NICHE_BOUNDARIES.items()
+                      if normalize(name) in {normalize(niche), normalize(getattr(brand, "name", ""))}), "")
+        if scope:
+            niche_queries = [term.strip() for term in scope.split(",")]
+            # Prefer boundary subjects mentioned by the topic. Rotate ties to
+            # avoid always choosing the same fallback subject for every scene.
+            offset = (scene.scene_number - 1) % len(niche_queries)
+            niche_queries = niche_queries[offset:] + niche_queries[:offset]
+            words = set(re.findall(r"[a-z]+", f"{topic} {keyword}".lower()))
+            niche_queries.sort(key=lambda term: -len(words & set(re.findall(r"[a-z]+", term.lower()))))
+        else:
+            niche_queries = re.split(r"[,/&]", niche or "")
+        project_queries = [getattr(project, field, "") for field in ("topic", "niche", "title")]
+        seen, queries = set(), []
+        for level, values in (("topic", topic_queries), ("niche", niche_queries[:3]), ("project", project_queries)):
+            for value in values:
+                if not isinstance(value, str):
+                    continue
+                value = re.sub(r"\s+", " ", value.replace("_", " ")).strip()
+                if value and value.casefold() not in seen:
+                    seen.add(value.casefold())
+                    queries.append((level, value))
+        return queries
 
     @staticmethod
     def _media_orientation(scene: Scene) -> str:
@@ -77,20 +117,20 @@ class DownloaderService:
 
         if scene_media_type == "image":
             search_keyword = (
-                scene.image_prompt
-                or scene.keyword
+                scene.keyword
+                or scene.image_prompt
                 or scene.video_prompt
             )
         elif scene_media_type == "video":
             search_keyword = (
-                scene.video_prompt
-                or scene.keyword
+                scene.keyword
+                or scene.video_prompt
                 or scene.image_prompt
             )
         else:
             search_keyword = (
-                scene.image_prompt
-                or scene.keyword
+                scene.keyword
+                or scene.image_prompt
                 or scene.video_prompt
             )
 
@@ -99,13 +139,14 @@ class DownloaderService:
 
         search_keyword = str(search_keyword or "").strip()
 
-        if not search_keyword:
+        search_queries = DownloaderService._search_queries(scene, search_keyword)
+        if not search_queries:
 
             raise HTTPException(
 
                 status_code=400,
 
-                detail="Scene keyword or prompt is missing.",
+                detail="Add a scene topic, niche, or project description to find relevant media.",
 
             )
 
@@ -127,7 +168,7 @@ class DownloaderService:
 
             )
 
-            if media:
+            if media and os.path.isfile(media.file_path):
 
                 return {
 
@@ -148,6 +189,8 @@ class DownloaderService:
                     "file_url": media.file_url,
 
                     "status": media.status,
+                    "match_level": next((level for level in ("topic", "niche", "project")
+                                         if (media.title or "").startswith(f"Scene {scene.scene_number} [{level}]:")), None),
 
                 }
 
@@ -216,31 +259,39 @@ class DownloaderService:
         # ======================================================
 
         media = None
+        provider_errors = []
         orientation = DownloaderService._media_orientation(scene)
 
-        try:
-            media = PexelsClient.search_and_download(
-                keyword=search_keyword,
-                media_type=media_type,
-                save_path=filepath,
-                orientation=orientation,
-            )
-        except Exception:
-            media = None
-
-        if not media:
-            try:
-                media = PixabayClient.search_and_download(
-                    keyword=search_keyword,
-                    media_type=media_type,
-                    save_path=filepath,
-                    orientation=orientation,
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Media download failed : {str(e)}",
-                )
+        failed_providers = set()
+        match_level = "topic"
+        excluded_urls = list((getattr(scene.content, "generation_config", None) or {}).get("excluded_media_urls", []))
+        used_in_output = (db.query(Media.file_url).join(Scene, Scene.media_id == Media.id)
+                          .filter(Scene.content_id == scene.content_id, Scene.id != scene.id).all())
+        excluded_urls.extend(url for (url,) in used_in_output if url)
+        for match_level, query in search_queries:
+            for client in (PexelsClient, PixabayClient):
+                if client in failed_providers:
+                    continue
+                try:
+                    media = client.search_and_download(
+                        keyword=query, media_type=media_type, save_path=filepath,
+                        orientation=orientation if query == search_keyword else None,
+                        **({"excluded_urls": excluded_urls} if excluded_urls else {}),
+                    )
+                except Exception as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    reason = ("check API credentials" if status in (401, 403) or not client.API_KEY
+                              else "rate limit reached; retry later" if status == 429
+                              else "request failed; retry later")
+                    provider_errors.append(f"{client.__name__.replace('Client', '')}: {reason}")
+                    # Retrying a broken/rate-limited provider for every query only delays fallback.
+                    if status != 400:
+                        failed_providers.add(client)
+                    continue
+                if media:
+                    break
+            if media:
+                break
 
         # ======================================================
         # Validate Download
@@ -248,11 +299,14 @@ class DownloaderService:
 
         if not media:
 
+            if provider_errors:
+                raise HTTPException(status_code=503, detail="No media could be downloaded. " + "; ".join(provider_errors) + ". Any other provider returned no matching asset. Retry or upload scene media.")
+
             raise HTTPException(
 
                 status_code=404,
 
-                detail="No media found from Pexels or Pixabay.",
+                detail="No relevant media found after topic, niche, and project searches. Refine the search phrase or upload a visual.",
 
             )
 
@@ -280,7 +334,7 @@ class DownloaderService:
 
             provider=media["provider"],
 
-            title=f"Scene {scene.scene_number}",
+            title=f"Scene {scene.scene_number} [{match_level}]: {media.get('title') or query}"[:255],
 
             file_name=filename,
 
@@ -361,6 +415,8 @@ class DownloaderService:
             "file_url": media_record.file_url,
 
             "media_type": media_record.media_type,
+
+            "match_level": match_level,
 
             "status": media_record.status,
 

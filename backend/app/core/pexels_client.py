@@ -3,7 +3,7 @@ import requests
 
 from dotenv import load_dotenv
 
-from app.core.media_selection import best_by_dimensions
+from app.core.media_selection import best_by_dimensions, best_for_query
 
 load_dotenv()
 
@@ -110,6 +110,7 @@ class PexelsClient:
         cls,
         query: str,
         orientation: str | None = None,
+        excluded_urls=None,
     ):
 
         data = cls.search_images(
@@ -123,15 +124,21 @@ class PexelsClient:
             [],
         )
 
+        excluded = {url.split("?")[0] for url in (excluded_urls or [])}
+        photos = [item for item in photos if not any(str(url).split("?")[0] in excluded for url in item.get("src", {}).values())]
         if not photos:
-            return None
+            return cls.first_image(query, excluded_urls=excluded_urls) if orientation else None
 
-        photo = best_by_dimensions(
+        photo = best_for_query(
             photos,
             lambda item: (item.get("width"), item.get("height")),
+            query=query,
             media_type="image",
             orientation=orientation,
         )
+
+        if not photo:
+            return cls.first_image(query, excluded_urls=excluded_urls) if orientation else None
 
         return {
 
@@ -165,6 +172,7 @@ class PexelsClient:
         cls,
         query: str,
         orientation: str | None = None,
+        excluded_urls=None,
     ):
 
         data = cls.search_videos(
@@ -178,15 +186,21 @@ class PexelsClient:
             [],
         )
 
+        excluded = {url.split("?")[0] for url in (excluded_urls or [])}
+        videos = [item for item in videos if not any(str(file.get("link", "")).split("?")[0] in excluded for file in item.get("video_files", []))]
         if not videos:
-            return None
+            return cls.first_video(query, excluded_urls=excluded_urls) if orientation else None
 
-        video = best_by_dimensions(
+        video = best_for_query(
             videos,
             lambda item: (item.get("width"), item.get("height")),
+            query=query,
             media_type="video",
             orientation=orientation,
         )
+
+        if not video:
+            return cls.first_video(query, excluded_urls=excluded_urls) if orientation else None
 
         files = video.get(
             "video_files",
@@ -286,15 +300,16 @@ class PexelsClient:
         media_type: str,
         save_path: str,
         orientation: str | None = None,
+        excluded_urls=None,
     ):
 
         if media_type.lower() == "image":
 
-            media = cls.first_image(keyword, orientation=orientation)
+            media = cls.first_image(keyword, orientation=orientation, excluded_urls=excluded_urls)
 
         elif media_type.lower() == "video":
 
-            media = cls.first_video(keyword, orientation=orientation)
+            media = cls.first_video(keyword, orientation=orientation, excluded_urls=excluded_urls)
 
         else:
 

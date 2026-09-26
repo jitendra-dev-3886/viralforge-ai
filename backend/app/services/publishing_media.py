@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from PIL import Image, ImageOps
 
 from app.models.media import Media
+from app.models.scene import Scene
 
 STORAGE = Path(__file__).resolve().parents[2] / "storage"
 
@@ -17,6 +18,14 @@ STORAGE = Path(__file__).resolve().parents[2] / "storage"
 def posting_metadata(content, provider):
     title = (content.title or "").strip()
     description = (content.caption or "").strip()
+    if provider == "youtube" and description:
+        # Use the approved caption as the upload title, before adding credits
+        # or hashtags to the description. YouTube titles are a single line.
+        title = re.sub(r"\s+", " ", description)
+    if provider == "youtube":
+        saved_description = (getattr(content, "generation_config", None) or {}).get("description")
+        if isinstance(saved_description, str) and saved_description.strip():
+            description = saved_description.strip()
     credit = ((getattr(content, "generation_config", None) or {}).get("audio") or {}).get("license_note", "").strip()
     if credit and credit not in description:
         description = "\n\n".join(value for value in [description, credit] if value)
@@ -38,6 +47,8 @@ def posting_metadata(content, provider):
             tags.append(tag)
             seen.add(tag.casefold())
     if provider == "youtube":
+        if len(title) > 100:
+            raise HTTPException(400, "Shorten the caption used as the YouTube title to 100 characters (or the title if the caption is empty).")
         if not title or any(char in title + description for char in "<>"):
             raise HTTPException(400, "YouTube needs a title, and its title and description cannot contain < or >.")
         if sum(len(tag) + (2 if " " in tag else 0) for tag in tags) + max(0, len(tags) - 1) > 500:
@@ -90,12 +101,34 @@ def snapshot(db, user_id, content, account, media_ids, privacy, made_for_kids):
         raise HTTPException(400, "Use one video or a set of images. Mixed image/video posts are not supported.")
     if account.provider == "youtube" and not video:
         raise HTTPException(400, "YouTube automatic publishing supports videos and Shorts. Select an exported video.")
+    format_name = (content.content_type or "").strip().lower()
+    if format_name == "story":
+        raise HTTPException(400, "Automatic Story publishing is not supported. Save a manual reminder instead.")
+    video_format = any(value in format_name for value in ("reel", "short", "video"))
+    if video_format:
+        if not video or ordered[0].media_type != "final" or ordered[0].file_name != f"content_{content.id}_final.mp4":
+            raise HTTPException(400, "Export and select the complete final video for this content, not a source clip or individual scene.")
+    else:
+        if not images:
+            raise HTTPException(400, "This format requires finished image exports.")
+        numbers = []
+        for media in ordered:
+            match = re.fullmatch(rf"content_{content.id}_scene_(\d+)_final\.(?:png|jpe?g|webp)", media.file_name or "", re.I)
+            if not match:
+                raise HTTPException(400, "Select finished image exports for this content, not raw scene media or another content's files.")
+            numbers.append(int(match[1]))
+        if "carousel" in format_name:
+            expected = [number for (number,) in db.query(Scene.scene_number).filter(Scene.content_id == content.id).order_by(Scene.scene_number).all()]
+            if not 2 <= len(expected) <= 10 or numbers != expected:
+                raise HTTPException(400, "Export and select every carousel slide in scene order (2–10 slides).")
+        elif len(ordered) != 1:
+            raise HTTPException(400, "Posts and quotes require one finished image.")
     base = public_base() if account.provider == "instagram" else ""
     metadata = posting_metadata(content, account.provider)
     caption = metadata["caption"]
     if account.provider == "instagram" and len(caption) > 2200:
         raise HTTPException(400, "Instagram captions must be 2,200 characters or fewer. Shorten the caption before scheduling.")
-    if account.provider == "youtube" and (len(content.title or "") > 100 or len(caption.encode("utf-8")) > 5000):
+    if account.provider == "youtube" and (len(metadata["title"]) > 100 or len(caption.encode("utf-8")) > 5000):
         raise HTTPException(400, "Shorten the YouTube title (100 characters) or description (5,000 bytes).")
     assets, created = [], []
     try:

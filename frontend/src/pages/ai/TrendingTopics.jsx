@@ -1,19 +1,14 @@
 import { useEffect, useState } from "react";
-import { Flame, Lightbulb, Pencil, RefreshCw } from "lucide-react";
+import { Flame, Pencil } from "lucide-react";
 import { getTrending } from "../../api/trends";
 
-export default function TrendingTopics({ niche, onSelect, value, title = "5. Choose a topic" }) {
+export default function TrendingTopics({ niche, projectId, platform, contentType, onSelect, value, title = "5. Choose a topic" }) {
     const [activeTab, setActiveTab] = useState("trending");
     const [trendingTopics, setTrendingTopics] = useState([]);
-    const [topicLimit, setTopicLimit] = useState(24);
     const [topicMeta, setTopicMeta] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [myTopic, setMyTopic] = useState("");
-
-    useEffect(() => {
-        setTopicLimit(24);
-    }, [niche]);
 
     useEffect(() => {
         let cancelled = false;
@@ -29,7 +24,7 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
             setError("");
 
             try {
-                const data = await getTrending(niche, topicLimit);
+                const data = await getTrending(niche, 10, { project_id: projectId || undefined, platform, content_type: contentType });
                 const topics = Array.isArray(data) ? data : data?.trends || [];
                 const relevantTopics = topics
                     .map((item) => (
@@ -46,7 +41,8 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
             } catch (err) {
                 console.error("Trending fetch failed", err);
                 if (!cancelled) {
-                    setError("Unable to load niche topics right now.");
+                    const detail = err.response?.data?.detail;
+                    setError(typeof detail === "string" ? detail : detail?.message || "Unable to load creator topics right now.");
                     setTrendingTopics([]);
                     setTopicMeta(null);
                 }
@@ -62,10 +58,9 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
         return () => {
             cancelled = true;
         };
-    }, [niche, topicLimit]);
+    }, [niche, projectId, platform, contentType]);
 
-    const displayNiche = topicMeta?.niche || niche.replaceAll("_", " ");
-    const ideaTopics = trendingTopics.filter((topic) => topic.source !== "live");
+    const displayNiche = topicMeta?.niche || (niche || "").replaceAll("_", " ");
 
     const topicCard = (topic, index, icon) => (
         <button
@@ -76,13 +71,12 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
             className="w-full rounded-xl border border-slate-200 p-3 text-left text-sm text-slate-700 transition hover:border-blue-500 hover:bg-blue-50"
         >
             <div className="flex items-start justify-between gap-3">
-                <span>{icon} {topic.title}</span>
-                {topic.source === "live" && (
+                <span><span className="mb-1 block text-xs text-slate-500">{topic.language === "hi" ? "हिंदी" : "English"}</span>{icon} {topic.title}</span>
                     <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                        Live
+                        Trend-based
                     </span>
-                )}
             </div>
+            {topic.source_title && <p className="mt-2 text-xs text-slate-500">Based on: {topic.source_title}</p>}
         </button>
     );
 
@@ -92,7 +86,7 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
                 {title}
             </h2>
             <p className="mb-4 text-sm text-slate-500">
-                Choose from live niche trends, niche-specific content ideas, or write a custom brief.
+                Up to 5 Hindi and 5 English creator-ready topics, based on recent trends and filtered for your niche and audience.
             </p>
 
             <div className="mb-4 flex flex-wrap gap-2">
@@ -106,20 +100,7 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
                     }`}
                 >
                     <Flame size={18} className="mr-2 inline" />
-                    Trending
-                </button>
-
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("ideas")}
-                    className={`rounded-lg px-5 py-2 ${
-                        activeTab === "ideas"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                >
-                    <Lightbulb size={18} className="mr-2 inline" />
-                    Niche Ideas
+                    Creator trends
                 </button>
 
                 <button
@@ -156,21 +137,12 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
                                 <span>
                                     Showing {trendingTopics.length} topics for {displayNiche}.
                                 </span>
-                                {topicLimit < 30 && trendingTopics.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setTopicLimit(30)}
-                                        className="inline-flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
-                                    >
-                                        <RefreshCw size={15} />
-                                        Show more
-                                    </button>
-                                )}
+
                             </div>
 
-                            {topicMeta?.live_count === 0 && (
+                            {trendingTopics.length > 0 && trendingTopics.length < 10 && (
                                 <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                    Live trend sources are unavailable, so these are niche-specific content ideas.
+                                    Fewer than 5 live topics are currently available in one or both languages. Only available results are shown.
                                 </p>
                             )}
 
@@ -180,23 +152,10 @@ export default function TrendingTopics({ niche, onSelect, value, title = "5. Cho
 
                             {!trendingTopics.length && !error && (
                                 <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                                    Select a niche to load matching topic ideas.
+                                    {niche ? "No live topics are available right now. Try again later or enter your own topic." : "Select a niche to load live topics."}
                                 </p>
                             )}
                         </>
-                    )}
-                </div>
-            )}
-
-            {activeTab === "ideas" && (
-                <div className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 md:grid-cols-2">
-                    {(ideaTopics.length ? ideaTopics : trendingTopics).map((topic, index) => (
-                        topicCard(topic, index, "💡")
-                    ))}
-                    {!trendingTopics.length && (
-                        <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 md:col-span-2">
-                            Select a niche first to load matching ideas.
-                        </p>
                     )}
                 </div>
             )}

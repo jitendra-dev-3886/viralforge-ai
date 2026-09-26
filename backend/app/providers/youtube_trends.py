@@ -23,7 +23,7 @@ class YoutubeProvider:
             developerKey=key,
         )
 
-    def get_trending(self, query: str | None = None, limit: int = 25):
+    def get_trending(self, query: str | None = None, limit: int = 25, language: str = "en"):
         """Return video titles, optionally focused on one creator niche."""
         limit = max(1, min(limit, 50))
 
@@ -38,7 +38,7 @@ class YoutubeProvider:
             # A recent niche search produces useful creator topics; the global
             # most-popular endpoint cannot be filtered by niche.
             published_after = (
-                datetime.now(timezone.utc) - timedelta(days=90)
+                datetime.now(timezone.utc) - timedelta(days=7)
             ).isoformat().replace("+00:00", "Z")
             response = self.youtube.search().list(
                 part="snippet",
@@ -46,7 +46,7 @@ class YoutubeProvider:
                 type="video",
                 order="viewCount",
                 regionCode="IN",
-                relevanceLanguage="en",
+                relevanceLanguage=language,
                 publishedAfter=published_after,
                 maxResults=limit,
             ).execute()

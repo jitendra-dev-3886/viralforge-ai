@@ -12,7 +12,7 @@ class ScheduleCreate(BaseModel):
     timezone: str = "Asia/Kolkata"
     publishing_account_id: int | None = None
     media_ids: list[int] = Field(default_factory=list, max_length=10)
-    privacy: Literal["public", "unlisted", "private"] = "public"
+    privacy: Literal["public", "unlisted", "private"] = "private"
     made_for_kids: bool = False
     request_key: UUID | None = None
 

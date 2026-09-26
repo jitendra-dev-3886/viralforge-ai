@@ -6,6 +6,7 @@ import { getContentScenes } from "../../api/scene";
 import { createSchedule } from "../../api/schedule";
 import { assetUrl } from "../../api/axios";
 import { apiErrorMessage } from "../../api/errors";
+import { publishingAssets, publishingSelectionError } from "../workspace/workflow";
 
 export default function AutoPostForm({ content, disabled, onScheduled }) {
     const [accounts, setAccounts] = useState([]);
@@ -13,21 +14,27 @@ export default function AutoPostForm({ content, disabled, onScheduled }) {
     const [accountId, setAccountId] = useState("");
     const [mediaIds, setMediaIds] = useState([]);
     const [when, setWhen] = useState("");
-    const [privacy, setPrivacy] = useState("public");
+    const [privacy, setPrivacy] = useState("private");
     const [kids, setKids] = useState("");
     const [busy, setBusy] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
     const [enabled, setEnabled] = useState(false);
+    const [scenes, setScenes] = useState([]);
+    const [reload, setReload] = useState(0);
     const requestRef = useRef(null);
     const lock = useRef(false);
     const platform = content.platform.toLowerCase();
     const privateDraft = platform === "youtube" && privacy === "private";
+    const publishDescription = platform === "youtube" ? (content.description?.trim() || content.generation_config?.description?.trim() || content.caption) : content.caption;
+    const youtubeTitle = content.caption?.trim() ? content.caption.trim().replace(/\s+/g, " ") : (content.title || "").trim();
     useEffect(() => {
         let active = true;
         setAssets([]);
         setMediaIds([]);
+        setAccountId("");
+        setPrivacy("private");
         setLoaded(false);
         setError("");
         setNotice("");
@@ -36,16 +43,14 @@ export default function AutoPostForm({ content, disabled, onScheduled }) {
             if (!active) return;
             setAccounts(connections.accounts.filter(item => item.status === "connected" && item.provider === platform));
             setEnabled(connections.worker_enabled);
-            const exportName = new RegExp(`^content_${Number(content.id)}_(?:final\\.mp4|scene_\\d+_final\\.(?:png|jpe?g|webp|mp4))$`, "i");
-            const sceneMediaIds = new Set((scenes.scenes || []).map(scene => scene.media_id));
-            setAssets((media.media || []).filter(item => item.status === "ready"
-                && ["image", "video", "render", "final"].includes(item.media_type)
-                && (sceneMediaIds.has(item.id) || exportName.test(item.file_name))
-                && (platform !== "youtube" || ["video", "render", "final"].includes(item.media_type))));
+            const exports = publishingAssets(content, media.media || []);
+            setAssets(exports);
+            setScenes(scenes.scenes || []);
+            setMediaIds(exports.map(item => item.id));
             setLoaded(true);
         }).catch(err => { if (active) setError(apiErrorMessage(err, "Unable to load publishing accounts or media.")); });
         return () => { active = false; };
-    }, [content.id, content.project_id, platform]);
+    }, [content, platform, reload]);
     const toggleMedia = id => setMediaIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
     const submit = async () => {
         if (lock.current) return;
@@ -53,6 +58,8 @@ export default function AutoPostForm({ content, disabled, onScheduled }) {
         setNotice("");
         const date = new Date(when);
         if (!accountId || !mediaIds.length || !Number.isFinite(date.getTime()) || date <= new Date()) { setError("Choose a connected account, media and a future date/time."); return; }
+        const selectionError = publishingSelectionError(content, selected, scenes);
+        if (selectionError) { setError(selectionError); return; }
         if (platform === "youtube" && !kids) { setError("Choose the YouTube audience setting."); return; }
         const payload = { project_id: content.project_id, content_id: content.id, platform: content.platform, publishing_account_id: Number(accountId), media_ids: mediaIds, scheduled_at: date.toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, privacy, made_for_kids: kids === "yes" };
         const signature = JSON.stringify(payload);
@@ -68,6 +75,7 @@ export default function AutoPostForm({ content, disabled, onScheduled }) {
         finally { lock.current = false; setBusy(false); }
     };
     const selected = mediaIds.map(id => assets.find(asset => asset.id === id)).filter(Boolean);
+    const selectionError = loaded ? publishingSelectionError(content, selected, scenes) : "";
     return <fieldset disabled={disabled || busy} className="space-y-4 rounded-2xl border border-indigo-100 bg-white p-5">
         <div><h3 className="font-semibold">Automatic posting</h3><p className="mt-1 text-sm text-slate-500">Select the account and the exact files to publish. The caption and media selection are saved with this schedule.</p></div>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
@@ -76,17 +84,20 @@ export default function AutoPostForm({ content, disabled, onScheduled }) {
         {loaded && !enabled && <p className="text-sm text-amber-700">Automatic publishing is disabled on this server.</p>}
         {loaded && !accounts.length && <p className="text-sm text-amber-700">Connect a {content.platform} account in <Link to="/settings#social-accounts" className="underline">Settings → Connected social accounts</Link>.</p>}
         <label className="block text-sm font-medium">Publish to<select required value={accountId} onChange={event => setAccountId(event.target.value)} className="mt-2 block w-full rounded-xl border p-3"><option value="">Select connected account</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-        <div><p className="text-sm font-medium">Media to publish</p><p className="mt-1 text-xs text-slate-500">Showing scene media and finished exports for this content only. Use the final export for the complete video with captions and branding. {platform === "youtube" ? "YouTube requires a video." : "Choose one video or up to 10 images in posting order."}</p>
+        <div><p className="text-sm font-medium">Finished media to publish</p><p className="mt-1 text-xs text-slate-500">Finished exports are selected in scene order. Carousels use every slide; posts and quotes use one image; reels use the complete merged video.</p>
+            <button type="button" onClick={() => setReload(value => value + 1)} className="mt-2 text-sm font-semibold text-indigo-600">Refresh exports</button>
+            {selectionError && <p role="status" className="mt-2 text-sm text-amber-700">{selectionError}</p>}
             <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-xl border p-3">{assets.map(asset => <label key={asset.id} className="flex items-center gap-3 text-sm"><input type="checkbox" checked={mediaIds.includes(asset.id)} disabled={!mediaIds.includes(asset.id) && mediaIds.length >= 10} onChange={() => toggleMedia(asset.id)} /><span>{asset.title || asset.file_name} <span className="text-xs text-slate-500">({asset.media_type})</span></span>{mediaIds.includes(asset.id) && <span className="text-xs text-indigo-600">#{mediaIds.indexOf(asset.id) + 1}</span>}</label>)}{loaded && !assets.length && <p className="text-sm text-slate-500">Export your content first, then reopen scheduling.</p>}</div>
         </div>
         {selected.length > 0 && <div className="flex flex-wrap gap-3">{selected.map(asset => <div key={asset.id} className="w-32">{asset.media_type === "image" ? <img alt={asset.title || "Selected image"} src={assetUrl(asset.file_url)} className="h-32 w-32 rounded-xl object-contain" /> : <video controls preload="metadata" src={assetUrl(asset.file_url)} className="h-32 w-32 rounded-xl object-contain" />}<p className="mt-1 truncate text-xs">{asset.title || asset.file_name}</p></div>)}</div>}
-        <p className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm">{content.caption || "No caption"}{content.hashtags?.length ? `\n\n${Array.isArray(content.hashtags) ? content.hashtags.join(" ") : content.hashtags.replaceAll(",", " ")}` : ""}</p>
+        {platform === "youtube" && <div className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-medium">YouTube title</p><p className="mt-1">{youtubeTitle || "No title"}</p><p className="mt-1 text-xs text-slate-500">Uses your caption, or the content title when the caption is empty. Maximum 100 characters.</p></div>}
+        <p className="whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm">{platform === "youtube" ? "YouTube description\n" : ""}{publishDescription || "No caption"}{content.hashtags?.length ? `\n\n${Array.isArray(content.hashtags) ? content.hashtags.join(" ") : content.hashtags.replaceAll(",", " ")}` : ""}</p>
         {platform === "facebook" && <p className="text-xs text-slate-500">Videos publish as Facebook Page Reels. Images publish as a Page photo post.</p>}
         {platform === "instagram" && <p className="text-xs text-slate-500">Images publish to the feed; videos publish as Reels. Feed images need a 4:5 to 1.91:1 aspect ratio.</p>}
-        {platform === "youtube" && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">YouTube posting mode<select value={privacy} onChange={event => setPrivacy(event.target.value)} className="mt-2 block w-full rounded-xl border p-3"><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Draft ? upload as Private</option></select></label><label className="text-sm">Made for kids?<select value={kids} onChange={event => setKids(event.target.value)} className="mt-2 block w-full rounded-xl border p-3"><option value="">Choose audience</option><option value="no">No, not made for kids</option><option value="yes">Yes, made for kids</option></select></label></div>}
+        {platform === "youtube" && <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">YouTube posting mode<select value={privacy} onChange={event => setPrivacy(event.target.value)} className="mt-2 block w-full rounded-xl border p-3"><option value="private">Draft (Private)</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label><label className="text-sm">Made for kids?<select value={kids} onChange={event => setKids(event.target.value)} className="mt-2 block w-full rounded-xl border p-3"><option value="">Choose audience</option><option value="no">No, not made for kids</option><option value="yes">Yes, made for kids</option></select></label></div>}
         {privateDraft && <p role="status" className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-800">This uploads a private video to YouTube at the chosen time. It stays private until you change its visibility in YouTube Studio. Your title, description, hashtags and keyword tags are included.</p>}
         <label className="block text-sm">{privateDraft ? "Private upload date and time" : "Publish date and time"} ({Intl.DateTimeFormat().resolvedOptions().timeZone})<input type="datetime-local" required value={when} onChange={event => setWhen(event.target.value)} className="mt-2 block rounded-xl border p-3" /></label>
-        <button type="button" disabled={!loaded || !enabled || !accountId || !mediaIds.length || !when || content.status !== "approved" || (platform === "youtube" && !kids)} onClick={submit} className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Saving schedule..." : privateDraft ? "Schedule private draft upload" : "Schedule automatic post"}</button>
+        <button type="button" disabled={!loaded || !enabled || !accountId || !mediaIds.length || !when || Boolean(selectionError) || content.status !== "approved" || (platform === "youtube" && !kids)} onClick={submit} className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Saving schedule..." : privateDraft ? "Schedule private draft upload" : "Schedule automatic post"}</button>
         <p className="text-xs text-slate-500">Your server must stay running. Publication may take a few minutes while the platform processes the media.</p>
     </fieldset>;
 }

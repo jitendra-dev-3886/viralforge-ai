@@ -1,4 +1,5 @@
 import os
+import json
 import tempfile
 import unittest
 from datetime import timedelta
@@ -21,13 +22,103 @@ from app.models.schedule import Schedule
 from app.models.publishing import PublishingAccount, PublishingOAuthState, PublishJob, PublishEvent
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
 from app.api.schedule import create_schedule, update_schedule, delete_schedule, list_schedules, schedule_events
-from app.api.social_connections import list_connections, disconnect
+from app.api.social_connections import list_connections, disconnect, connect, authorize
 from app.services.publishing_accounts import PublishingAccounts, ProviderError, encrypt, decrypt, now, api
 from app.services.publishing_worker import process_job
 from app.services.publishing_providers import Pending, instagram, youtube, facebook
 
 
 class PublishingTests(unittest.TestCase):
+    def test_oauth_handoff_sets_callback_host_cookie_and_preserves_state(self):
+        with patch.dict(os.environ, {"BACKEND_URL": "https://tunnel.example"}):
+            response = connect("youtube", self.db, 1)
+            handoff = urlparse(json.loads(response.body)["authorization_url"])
+            self.assertEqual(handoff.netloc, "tunnel.example")
+            self.assertNotIn("set-cookie", response.headers)
+            ticket = parse_qs(handoff.query)["ticket"][0]
+            redirect = authorize("youtube", ticket)
+            from http.cookies import SimpleCookie
+            cookies = SimpleCookie()
+            cookies.load(redirect.headers["set-cookie"])
+            binding = cookies["publishing_youtube"]
+            self.assertTrue(binding["secure"])
+            self.assertEqual(binding["path"], "/api/social-connections/youtube/callback")
+            state = parse_qs(urlparse(redirect.headers["location"]).query)["state"][0]
+            self.assertEqual(PublishingAccounts.consume_state(self.db, "youtube", state, binding.value), 1)
+            with self.assertRaises(HTTPException):
+                authorize("instagram", ticket)
+            with self.assertRaises(HTTPException):
+                authorize("youtube", "invalid-ticket")
+            with patch("cryptography.fernet.time.time", return_value=now().timestamp() + 180):
+                with self.assertRaises(HTTPException):
+                    authorize("youtube", ticket)
+
+    def image_exports(self):
+        from PIL import Image
+        for number in (1, 2):
+            path = self.root / f"slide-{number}.png"
+            Image.new("RGB", (80, 100), "red").save(path)
+            self.db.add(models.Scene(id=number, user_id=1, project_id=1, content_id=1,
+                                     scene_number=number, text=f"Slide {number}"))
+            self.db.add(Media(id=number + 1, user_id=1, project_id=1, media_type="image", status="ready",
+                              file_name=f"content_1_scene_{number}_final.png", file_path=str(path), extension=".png", mime_type="image/png"))
+        self.db.commit()
+
+    def test_four_formats_schedule_and_publish_on_both_meta_platforms(self):
+        self.image_exports()
+        def remote(method, url, **kwargs):
+            fields = kwargs.get("data") or {}
+            if method == "GET":
+                if kwargs.get("params", {}).get("fields") == "permalink":
+                    return {"permalink": "https://instagram.test/p/published"}
+                return {"status_code": "FINISHED", "status": {"video_status": "ready", "uploading_phase": {"status": "complete"}, "publishing_phase": {"status": "complete"}}}
+            if url.endswith("/video_reels") and fields.get("upload_phase") == "start":
+                return {"video_id": "video-1"}
+            if "rupload.facebook.com" in url or fields.get("upload_phase") == "finish":
+                return {"success": True}
+            return {"id": "remote-1"}
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_BASE_URL": "https://media.example"}), \
+             patch.object(PublishingAccounts, "token", return_value="test-token"), \
+             patch("app.services.publishing_providers.api", side_effect=remote) as platform_api:
+            for provider in ("instagram", "facebook"):
+                for kind, media_ids in (("Carousel", [2, 3]), ("Post", [2]), ("Quote", [2]), ("Reel", [1])):
+                    with self.subTest(platform=provider, format=kind):
+                        content = self.db.get(Content, 1)
+                        content.platform, content.content_type = provider.title(), kind
+                        self.account.provider = provider
+                        self.db.commit()
+                        result = create_schedule(self.request(platform=provider, media_ids=media_ids), self.db, 1)
+                        job = self.db.query(PublishJob).filter_by(schedule_id=result["schedule"]["id"]).one()
+                        self.assertEqual([asset["media_id"] for asset in job.payload["assets"]], media_ids)
+                        for _ in range(3):
+                            job.next_attempt_at = now() - timedelta(seconds=1)
+                            self.db.commit()
+                            process_job(self.db, job.id)
+                            self.db.refresh(job)
+                            if job.status == "published":
+                                break
+                        self.assertEqual(job.status, "published")
+                        self.assertEqual(self.db.get(Schedule, job.schedule_id).status, "published")
+                        call_count = platform_api.call_count
+                        process_job(self.db, job.id)
+                        self.assertEqual(platform_api.call_count, call_count)
+
+    def test_schedule_rejects_raw_wrong_format_and_incomplete_carousel(self):
+        self.image_exports()
+        content = self.db.get(Content, 1)
+        content.platform = "Facebook"
+        self.account.provider = "facebook"
+        for kind, ids in (("Carousel", [2]), ("Carousel", [3, 2]), ("Post", [2, 3]), ("Quote", [1]), ("Reel", [2])):
+            content.content_type = kind
+            self.db.commit()
+            with self.subTest(format=kind, ids=ids), self.assertRaises(HTTPException):
+                create_schedule(self.request(platform="Facebook", media_ids=ids), self.db, 1)
+        content.content_type = "Post"
+        self.db.get(Media, 2).file_name = "raw-source.png"
+        self.db.commit()
+        with self.assertRaises(HTTPException):
+            create_schedule(self.request(platform="Facebook", media_ids=[2]), self.db, 1)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -48,7 +139,7 @@ class PublishingTests(unittest.TestCase):
         self.db.add(self.account)
         source = self.root / "clip.mp4"
         source.write_bytes(b"fixture video")
-        self.db.add(Media(id=1, user_id=1, project_id=1, title="Final export", media_type="final", file_name="clip.mp4", file_path=str(source), extension=".mp4", mime_type="video/mp4", status="ready"))
+        self.db.add(Media(id=1, user_id=1, project_id=1, title="Final export", media_type="final", file_name="content_1_final.mp4", file_path=str(source), extension=".mp4", mime_type="video/mp4", status="ready"))
         self.db.commit()
         self.storage = patch("app.services.publishing_media.STORAGE", self.root)
         self.storage.start()
@@ -73,8 +164,8 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(second.name, "Second brand renamed")
         self.assertEqual(decrypt(second.refresh_token), "second-refresh")
 
-    def job(self):
-        result = create_schedule(self.request(), self.db, 1)
+    def job(self, **values):
+        result = create_schedule(self.request(**values), self.db, 1)
         job = self.db.query(PublishJob).one()
         job.next_attempt_at = now() - timedelta(seconds=1)
         self.db.commit()
@@ -116,6 +207,8 @@ class PublishingTests(unittest.TestCase):
         self.db.get(Content, 1).caption = "Later edit"
         self.db.commit()
         self.assertEqual(self.db.query(PublishJob).one().payload["caption"], "Approved caption")
+        self.assertEqual(self.db.query(PublishJob).one().payload["title"], "Approved caption")
+        self.assertEqual(first["schedule"]["title"], "Approved caption")
         self.assertNotIn("private-token", str(list_schedules(self.db, 1)))
 
     def test_ownership_platform_and_approval_enforced(self):
@@ -254,8 +347,22 @@ class PublishingTests(unittest.TestCase):
             self.assertEqual(result[2], "published")
             self.assertEqual(remote.call_count, 1)
 
+    def test_youtube_defaults_to_private_upload(self):
+        job, schedule = self.job()
+        self.assertEqual(job.payload["privacy"], "private")
+        self.assertEqual(schedule["privacy"], "private")
+        with patch("app.services.publishing_providers.request", return_value=Mock(headers={"Location": "https://www.googleapis.com/upload/session"})) as upload, patch(
+            "app.services.publishing_providers.api", side_effect=[
+                {"id": "video-1"},
+                {"items": [{"status": {"uploadStatus": "processed", "privacyStatus": "private"}}]},
+            ]
+        ):
+            result = youtube(self.db, job, self.account, "token")
+        self.assertEqual(upload.call_args.kwargs["json"]["status"]["privacyStatus"], "private")
+        self.assertEqual(result[2], "uploaded")
+
     def test_youtube_poll_never_reuploads_an_existing_video(self):
-        job, _ = self.job()
+        job, _ = self.job(privacy="public")
         job.provider_state = {"upload_url": "https://www.googleapis.com/upload/session", "post_id": "video-1"}
         self.db.commit()
         with patch("app.services.publishing_providers.api", return_value={"items": [{"status": {"uploadStatus": "processed", "privacyStatus": "public"}}]}) as remote:
@@ -265,7 +372,7 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(remote.call_args.args[0], "GET")
 
     def test_youtube_visibility_restriction_is_not_reported_as_published(self):
-        job, _ = self.job()
+        job, _ = self.job(privacy="public")
         job.provider_state = {"upload_url": "https://www.googleapis.com/upload/session", "post_id": "video-1"}
         self.db.commit()
         with patch("app.services.publishing_providers.api", return_value={"items": [{"status": {"uploadStatus": "processed", "privacyStatus": "private"}}]}):
@@ -287,10 +394,12 @@ class PublishingTests(unittest.TestCase):
         from PIL import Image
         self.account.provider = "instagram"
         self.db.get(Content, 1).platform = "Instagram"
+        self.db.get(Content, 1).content_type = "Post"
         path = self.root / "image.png"
         Image.new("RGB", (80, 100), "red").save(path)
         media = self.db.get(Media, 1)
         media.file_path, media.extension, media.media_type = str(path), ".png", "image"
+        media.file_name = "content_1_scene_1_final.png"
         self.db.commit()
         with patch.dict(os.environ, {"PUBLIC_MEDIA_BASE_URL": "http://localhost:8000"}):
             with self.assertRaises(HTTPException):

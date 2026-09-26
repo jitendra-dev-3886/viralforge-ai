@@ -3,7 +3,7 @@ import requests
 
 from dotenv import load_dotenv
 
-from app.core.media_selection import best_by_dimensions
+from app.core.media_selection import best_by_dimensions, best_for_query
 
 load_dotenv()
 
@@ -69,17 +69,22 @@ class PixabayClient:
         return response.json()
 
     @classmethod
-    def first_image(cls, query: str, orientation: str | None = None):
+    def first_image(cls, query: str, orientation: str | None = None, excluded_urls=None):
         data = cls.search_images(query=query, per_page=20, orientation=orientation)
         hits = data.get("hits", [])
+        excluded = {url.split("?")[0] for url in (excluded_urls or [])}
+        hits = [item for item in hits if not any(str(item.get(key, "")).split("?")[0] in excluded for key in ("largeImageURL", "webformatURL", "previewURL"))]
         if not hits:
-            return None
-        image = best_by_dimensions(
+            return cls.first_image(query, excluded_urls=excluded_urls) if orientation else None
+        image = best_for_query(
             hits,
             lambda item: (item.get("imageWidth"), item.get("imageHeight")),
+            query=query,
             media_type="image",
             orientation=orientation,
         )
+        if not image:
+            return cls.first_image(query, excluded_urls=excluded_urls) if orientation else None
         return {
             "provider": "Pixabay",
             "title": image.get("tags", query),
@@ -92,9 +97,11 @@ class PixabayClient:
         }
 
     @classmethod
-    def first_video(cls, query: str, orientation: str | None = None):
+    def first_video(cls, query: str, orientation: str | None = None, excluded_urls=None):
         data = cls.search_videos(query=query, per_page=20)
         hits = data.get("hits", [])
+        excluded = {url.split("?")[0] for url in (excluded_urls or [])}
+        hits = [item for item in hits if not any(str(file.get("url", "")).split("?")[0] in excluded for file in item.get("videos", {}).values())]
         if not hits:
             return None
 
@@ -111,12 +118,15 @@ class PixabayClient:
                 (largest or {}).get("height", 0),
             )
 
-        video = best_by_dimensions(
+        video = best_for_query(
             hits,
             video_dimensions,
+            query=query,
             media_type="video",
             orientation=orientation,
         )
+        if not video:
+            return None
         files = video.get("videos", {})
         selected_file = best_by_dimensions(
             files.values(),
@@ -158,11 +168,12 @@ class PixabayClient:
         media_type: str,
         save_path: str,
         orientation: str | None = None,
+        excluded_urls=None,
     ):
         if media_type.lower() == "image":
-            media = cls.first_image(keyword, orientation=orientation)
+            media = cls.first_image(keyword, orientation=orientation, excluded_urls=excluded_urls)
         elif media_type.lower() == "video":
-            media = cls.first_video(keyword, orientation=orientation)
+            media = cls.first_video(keyword, orientation=orientation, excluded_urls=excluded_urls)
         else:
             raise Exception("Unsupported media type.")
 

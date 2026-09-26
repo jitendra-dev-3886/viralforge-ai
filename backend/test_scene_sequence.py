@@ -1,6 +1,8 @@
 import json
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
+from app.config.prompt_config import VISUAL_NICHE_BOUNDARIES
 
 from app.schemas.ai import GenerateRequest
 from app.services.ai_service import AIService
@@ -8,6 +10,49 @@ from app.services.prompt_engine import PromptEngine
 
 
 class SceneSequenceTests(unittest.TestCase):
+    def test_all_six_niches_and_thirteen_platform_formats(self):
+        formats = {"Instagram": ["Reel", "Carousel", "Story", "Post", "Quote"],
+                   "Facebook": ["Reel", "Carousel", "Story", "Post", "Quote"],
+                   "YouTube": ["Shorts", "Long Video", "Community Post"]}
+        expected_counts = {"Reel": 7, "Carousel": 6, "Story": 7, "Post": 1, "Quote": 1,
+                           "Shorts": 7, "Long Video": 10, "Community Post": 1}
+        checked = 0
+        for niche, boundary in VISUAL_NICHE_BOUNDARIES.items():
+            previous = []
+            for platform, types in formats.items():
+                for format_name in types:
+                    with self.subTest(niche=niche, platform=platform, format=format_name):
+                        # A quote package must not turn the other selected formats into quotes.
+                        request = GenerateRequest(project_id=1, platforms=[platform], content_types=[format_name],
+                            niche=niche, topic=boundary.split(",")[0], package="quote")
+                        count, media_type, _, _, quote = PromptEngine.scene_settings(request)
+                        self.assertEqual(count, expected_counts[format_name])
+                        self.assertEqual(quote, format_name == "Quote")
+                        if format_name in ("Quote", "Post", "Community Post"):
+                            self.assertEqual(PromptEngine.scene_settings(request.model_copy(update={"scene_count": 7}))[0], 1)
+                        self.assertEqual(media_type, "video" if format_name in ("Reel", "Story", "Shorts", "Long Video") else "image")
+                        prompt = PromptEngine.build(request, brand=SimpleNamespace(name=niche), recent_visuals=previous)
+                        self.assertIn(boundary, prompt)
+                        self.assertIn(f"Topic: {request.topic}", prompt)
+                        content = self.content(count)
+                        identity = f"{platform} {format_name}"
+                        content.update(title=f"Topic explained for {identity}", caption=f"Specific takeaway for {identity}",
+                                       description="A complete topic explanation", hashtags=["#Topic", "#" + identity.replace(" ", "")])
+                        for index, scene in enumerate(content["scenes"]):
+                            scene["visual_plan"] = f"{identity} composition {index}"
+                        AIService._validate_scene_sequence(content, request)
+                        AIService._validate_output_variation(content, previous)
+                        if previous:
+                            for field in ("title", "caption", "hashtags"):
+                                with self.assertRaises(ValueError):
+                                    AIService._validate_output_variation({**content, field: previous[0][field]}, previous)
+                            repeated = {**content, "scenes": [{"visual_plan": value} for value in previous[0]["generation_config"]["visual_plan"]]}
+                            with self.assertRaises(ValueError):
+                                AIService._validate_output_variation(repeated, previous)
+                        previous.append({**content, "generation_config": {"visual_plan": [scene["visual_plan"] for scene in content["scenes"]]}})
+                        checked += 1
+        self.assertEqual(checked, 78)
+
     def request(self, content_type="Carousel", count=5):
         return GenerateRequest(project_id=1, platforms=["Instagram"], content_types=[content_type],
                                niche="Education", topic="How to grow tomatoes", package=content_type.lower(),

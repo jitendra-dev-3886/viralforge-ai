@@ -5,6 +5,8 @@ export default function SummaryPanel({
     topic,
     packageType,
     visualStyle,
+    contentGoal,
+    language,
 }) {
 
     return (
@@ -21,6 +23,8 @@ export default function SummaryPanel({
 
             <div className="grid md:grid-cols-2 gap-8 mt-8">
                 <div><h3 className="font-semibold mb-3">Visual style</h3><div>{visualStyle || "Default"}</div></div>
+                <div><h3 className="font-semibold mb-3">Language</h3><div>{language || "English"}</div></div>
+                <div><h3 className="font-semibold mb-3">Content Goal</h3><div>{contentGoal || "Default engagement"}</div></div>
 
                 <div>
 

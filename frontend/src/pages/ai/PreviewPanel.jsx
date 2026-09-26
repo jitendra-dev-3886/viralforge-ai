@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Copy, Download, Sparkles } from "lucide-react";
 import { downloadMedia } from "../../api/media";
 import ContentFinisher from "./ContentFinisher";
+import GeneratedPublishing from "./GeneratedPublishing";
 import SceneMediaUpload from "../../components/SceneMediaUpload";
 import { assetUrl } from "../../api/axios";
 import { Link } from "react-router-dom";
@@ -10,6 +11,7 @@ import { getContent } from "../../api/content";
 export default function PreviewPanel({ data, username = "", brandName = "", logo = "", projectId }) {
     const [uploads, setUploads] = useState({});
     const [uploadBusy, setUploadBusy] = useState(false);
+    const [exportBusy, setExportBusy] = useState(false);
     const [selectedMediaIds, setSelectedMediaIds] = useState([]);
     const [downloading, setDownloading] = useState(false);
     const [downloadError, setDownloadError] = useState("");
@@ -152,6 +154,7 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
                     {scene.text && <p><strong>Text:</strong> {scene.text}</p>}
                     {scene.keyword && <p><strong>Visual:</strong> {scene.keyword}</p>}
                     {scene.media_provider && <p><strong>Source:</strong> {scene.media_provider}</p>}
+                    {scene.media_url && ["niche", "project"].includes(scene.media_match_level) && <p className="text-xs text-amber-700">{scene.media_match_level === "niche" ? "Niche-related" : "Project-related"} visual used because no closer match was found.</p>}
                 </div>
 
                 {scene.media_url && (
@@ -175,10 +178,10 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
 
                 {!scene.media_url && (
                     <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        Media preview is unavailable for this scene. Regenerate after checking Pexels/Pixabay API keys.
+                        {scene.media_error || "No media is attached to this scene. Open the content editor to retry the stock search, refine the visual phrase, or upload your own visual."}
                     </p>
                 )}
-                <SceneMediaUpload sceneId={scene.id} disabled={uploadBusy} onBusyChange={setUploadBusy} onUploaded={result => { setUploads(current => ({...current, [scene.id]: result})); setSelectedMediaIds(current => current.filter(id => id !== scene.media_id)); }} />
+                <SceneMediaUpload sceneId={scene.id} disabled={uploadBusy || exportBusy} onBusyChange={setUploadBusy} onUploaded={result => { setUploads(current => ({...current, [scene.id]: result})); setSelectedMediaIds(current => current.filter(id => id !== scene.media_id)); }} />
             </article>
         );
     };
@@ -263,13 +266,15 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
 
                 {renderScenes(content)}
                 {contentId && <Link to={`/content/${contentId}/edit`} className="mt-4 inline-block rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700">Open content editor · Upload scene media</Link>}
-                <fieldset disabled={uploadBusy}><ContentFinisher
+                <fieldset disabled={uploadBusy || exportBusy}><ContentFinisher
                     content={content}
                     username={username}
                     brandName={brandName}
                     logo={logo}
                     projectId={projectId || content.project_id}
+                    onBusyChange={setExportBusy}
                 /></fieldset>
+                {contentId && <GeneratedPublishing key={contentId} contentId={contentId} disabled={uploadBusy || exportBusy} />}
             </article>
         );
     };

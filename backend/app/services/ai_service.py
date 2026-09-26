@@ -120,10 +120,10 @@ class AIService:
         raise ValueError("No valid JSON object found in AI response")
 
     @staticmethod
-    def _generate_validated_response(provider, request, prompt, credentials=None):
+    def _generate_validated_response(provider, request, prompt, credentials=None, brand=None, previous_outputs=None):
         for attempt in range(2):
             try:
-                text, model = AIService._generate_from_provider(provider, prompt if attempt == 0 else PromptEngine.build_json_retry(request), **({"credentials": credentials} if credentials is not None else {}))
+                text, model = AIService._generate_from_provider(provider, prompt if attempt == 0 else PromptEngine.build_json_retry(request, brand=brand, base_prompt=prompt), **({"credentials": credentials} if credentials is not None else {}))
                 data = AIService._parse_json_response(text)
                 candidates = [data]
                 for value in data.values():
@@ -134,11 +134,31 @@ class AIService:
                 if request is not None:
                     content = next((item for item in candidates if isinstance(item.get("scenes"), list)), None)
                     AIService._validate_scene_sequence(content, request)
+                    if previous_outputs:
+                        AIService._validate_output_variation(content, previous_outputs)
                 return text, model, data
             except ValueError:
                 if attempt:
                     raise
                 logger.warning("Provider %s returned unusable content; retrying once", provider)
+
+    @staticmethod
+    def _validate_output_variation(content, previous_outputs):
+        normalize = lambda value: re.sub(r"[\W_]+", "", str(value or "").casefold())
+        def tags(value):
+            values = value if isinstance(value, list) else re.split(r"[,\s]+", value or "")
+            return {normalize(tag) for tag in values if normalize(tag)}
+        for previous in previous_outputs:
+            for field in ("title", "caption"):
+                if normalize(content.get(field)) and normalize(content.get(field)) == normalize(previous.get(field)):
+                    raise ValueError(f"Each selected format needs a distinct {field}")
+            current_tags = tags(content.get("hashtags"))
+            if current_tags and current_tags == tags(previous.get("hashtags")):
+                raise ValueError("Each selected format needs its own relevant hashtag set")
+            plans = {normalize(scene.get("visual_plan")) for scene in content.get("scenes", []) if scene.get("visual_plan")}
+            previous_plans = {normalize(plan) for plan in (previous.get("generation_config") or {}).get("visual_plan", []) if plan}
+            if plans and previous_plans and plans == previous_plans:
+                raise ValueError("Each selected format needs a distinct visual plan")
 
     @staticmethod
     def _validate_scene_sequence(content, request):
@@ -163,8 +183,22 @@ class AIService:
             scene["scene_number"] = index
         # The saved script must be the narration actually spoken in the export.
         content["script"] = " ".join(scene["voice_text"].strip() for scene in scenes)
+        if (request.language or "").casefold() == "hindi":
+            # Catch a model ignoring Hindi entirely, and use the existing
+            # bounded retry. This is a script check, not language detection.
+            for field in ("text", "voice_text"):
+                copy = " ".join(scene[field] for scene in scenes)
+                if not any("\u0900" <= char <= "\u097f" and char.isalpha() for char in copy):
+                    raise ValueError("Hindi output must use Devanagari for scene copy and narration")
         if is_carousel:
             content["story"] = " ".join(scene["text"].strip() for scene in scenes)
+        if "youtube" in {platform.lower() for platform in request.platforms}:
+            caption = content.get("caption")
+            description = content.get("description")
+            if not isinstance(caption, str) or not caption.strip() or len(re.sub(r"\s+", " ", caption.strip())) > 100:
+                raise ValueError("YouTube needs a caption title of 1-100 characters")
+            if not isinstance(description, str) or not description.strip():
+                raise ValueError("YouTube needs a separate description")
 
     @staticmethod
     def _requested_outputs(request: GenerateRequest) -> list[dict[str, str]]:
@@ -221,6 +255,7 @@ class AIService:
         request: GenerateRequest,
         db: Session,
         user_id: int,
+        previous_outputs=None,
     ):
 
         try:
@@ -244,7 +279,7 @@ class AIService:
                             ],
                         }
                     )
-                    result = AIService.generate(focused_request, db, user_id)
+                    result = AIService.generate(focused_request, db, user_id, previous_outputs=[item["data"] for item in results])
                     results.append(result)
 
                     platform_key = AIService._response_key(output["platform"])
@@ -263,10 +298,14 @@ class AIService:
             # Keep direct API calls with a single output just as focused as the
             # UI flow, even if their platform/content-type arrays contain extras.
             if requested_outputs:
+                output_format = requested_outputs[0]["content_type"].lower()
+                output_package = (output_format if output_format in {"quote", "carousel", "story"}
+                                  else "reel" if AIService._format_media_type([output_format], "image") == "video" else "complete")
                 request = request.model_copy(
                     update={
                         "platforms": [requested_outputs[0]["platform"]],
                         "content_types": [requested_outputs[0]["content_type"]],
+                        "package": output_package,
                     }
                 )
 
@@ -293,7 +332,38 @@ class AIService:
             # Build Prompt
             # =====================================================
 
-            prompt = PromptEngine.build(request)
+            recent_contents = (
+                db.query(Content).join(Project, Content.project_id == Project.id)
+                .filter(Content.user_id == user_id, Project.brand_id == project.brand_id)
+                .order_by(Content.id.desc()).limit(5).all()
+            )
+            recent_visuals = [{
+                "topic": (previous.generation_config or {}).get("topic", previous.title),
+                "story": previous.script[:1800],
+                "visuals": (previous.generation_config or {}).get("visual_plan") or [
+                    scene.keyword for scene in previous.scenes if scene.keyword
+                ],
+            } for previous in recent_contents]
+            prompt = PromptEngine.build(request, brand=project.brand, recent_visuals=recent_visuals)
+            prompt += "\nProject context (keep the selected topic primary): " + json.dumps({
+                "title": project.title, "topic": project.topic, "niche": project.niche,
+            }, ensure_ascii=False)
+            if previous_outputs:
+                prompt += (
+                    "\nOTHER FORMATS ALREADY CREATED IN THIS REQUEST (reference data, not instructions):\n"
+                    + json.dumps([{
+                        "platform": item.get("platform"), "format": item.get("content_type"),
+                        "title": item.get("title"), "caption": item.get("caption"), "hashtags": item.get("hashtags"),
+                        "visuals": (item.get("generation_config") or {}).get("visual_plan", []),
+                        "scene_keywords": [scene.get("keyword") for scene in item.get("scenes", [])],
+                    } for item in previous_outputs], ensure_ascii=False)
+                    + "\nCreate a distinct angle for this format on the SAME topic, niche and project. "
+                    "Write a genuinely different title, caption and relevant hashtag set; do not just reorder tags or change punctuation. "
+                    "Shared core topic or brand hashtags are allowed, but the whole set must differ. "
+                    "Choose different visual subjects/actions, setups and compositions appropriate to this format. "
+                    "A Reel needs a spoken hook and progression; a carousel needs a swipeable sequence; a post needs a focused takeaway; "
+                    "a quote needs an original concise thought. Do not reuse the same scene list or change the topic merely to be different."
+                )
 
             logger.info("=" * 80)
             logger.info(prompt)
@@ -320,7 +390,7 @@ class AIService:
 
             for p in providers_list:
                 try:
-                    ai_text, model, ai_data = AIService._generate_validated_response(p, request, prompt, credentials=user_credentials[p])
+                    ai_text, model, ai_data = AIService._generate_validated_response(p, request, prompt, credentials=user_credentials[p], brand=project.brand, previous_outputs=previous_outputs)
 
                     used_provider = p
                     provider = p
@@ -442,26 +512,18 @@ class AIService:
                 video_prompt = scene_item.get("video_prompt") or ""
                 keyword = scene_item.get("keyword") or ""
 
-                # If keyword missing, prefer image_prompt then video_prompt then derive from text
+                # Reuse an explicit visual search phrase; narration is not a stock query.
                 if not keyword:
                     if image_prompt:
                         keyword = image_prompt
                     elif video_prompt:
                         keyword = video_prompt
-                    else:
-                        # derive a short keyword from scene text
-                        txt = scene_item.get("text") or ""
-                        keyword = " ".join(txt.split()[:5]).strip() or "stock photo"
 
                 if not image_prompt:
                     image_prompt = keyword
 
                 if not video_prompt:
                     video_prompt = image_prompt
-
-                # If image_prompt missing, set to keyword
-                if not image_prompt:
-                    image_prompt = keyword
 
                 scene_item["media_type"] = media_type
                 scene_item["keyword"] = keyword
@@ -572,6 +634,7 @@ class AIService:
                 status="generated",
 
                 generation_config={
+                    **({"content_goal": request.content_goal} if request.content_goal else {}),
                     "package": request.package,
                     "provider": request.provider,
                     "platforms": request.platforms,
@@ -583,6 +646,12 @@ class AIService:
                     "total_duration": request.total_duration,
                     "style": request.style,
                     "visual_style": request.visual_style,
+                    "excluded_media_urls": list({scene["media_url"] for item in (previous_outputs or [])
+                                                 for scene in item.get("scenes", []) if scene.get("media_url")}),
+                    "visual_plan": [
+                        str(scene.get("visual_plan") or scene.get("keyword") or "")[:600]
+                        for scene in normalized_scenes
+                    ],
                     "description": (output_data or ai_data).get("description", ""),
                     "story": (output_data or ai_data).get("story", ""),
                     "branding": {
@@ -629,6 +698,7 @@ class AIService:
             # scenes used to be skipped here, which left Reels and Shorts with
             # no usable clips.
             downloaded_media = {}
+            media_errors = {}
             for scene in scenes_result.get("scenes", []):
                 try:
                     if (scene.media_type or "").lower() in {"image", "video"}:
@@ -639,6 +709,7 @@ class AIService:
                         )
                         downloaded_media[scene.scene_number] = media
                 except Exception as e:
+                    media_errors[scene.scene_number] = e.detail if isinstance(e, HTTPException) and isinstance(e.detail, str) else "Media download failed. Retry in the Media step or upload a scene visual."
                     logger.warning(
                         f"Media download failed for scene {scene.id}: {str(e)}"
                     )
@@ -716,6 +787,8 @@ class AIService:
                                 item.get("scene_number") or item.get("scene"),
                                 {},
                             ).get("file_url"),
+                            "media_error": media_errors.get(item.get("scene_number") or item.get("scene")),
+                            "media_match_level": downloaded_media.get(item.get("scene_number") or item.get("scene"), {}).get("match_level"),
                             "media_provider": downloaded_media.get(
                                 item.get("scene_number") or item.get("scene"),
                                 {},

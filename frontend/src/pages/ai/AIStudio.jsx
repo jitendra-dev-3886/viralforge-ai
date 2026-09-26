@@ -1,3 +1,4 @@
+import { formatPlatformLabel, formatContentTypeLabel, formatContentTypePrompt, studioGenerationPayload } from "./studioGeneration";
 import UserProviderSelector from "../settings/UserProviderSelector";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,6 +13,7 @@ import PlatformSelector from "./PlatformSelector";
 import ContentTypeSelector from "./ContentTypeSelector";
 import SummaryPanel from "./SummaryPanel";
 import VisualStyleSelector from "./VisualStyleSelector";
+import ContentGoalSelector from "./ContentGoalSelector";
 import { getVisualStyle } from "./visualStyles";
 import { assetUrl } from "../../api/axios";
 import { useBrand } from "../../context/BrandContext";
@@ -27,10 +29,10 @@ export default function AIStudio() {
     const [selectedTopic, setSelectedTopic] = useState("");
 
     const [selectedPackage, setSelectedPackage] = useState("complete");
-    const [quoteLanguage, setQuoteLanguage] = useState("Hindi");
     const [generationOptions, setGenerationOptions] = useState({ language: "Hindi", scene_count: 7, total_duration: 30, style: "Educational" });
     const [selectedProvider, setSelectedProvider] = useState("auto");
     const [visualStyle, setVisualStyle] = useState("minimal");
+    const [contentGoal, setContentGoal] = useState("");
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -65,49 +67,6 @@ export default function AIStudio() {
         && selectedNiche
         && selectedTopic.trim(),
     );
-
-    const formatPlatformLabel = (platform) => {
-        const labels = {
-            instagram: "Instagram",
-            facebook: "Facebook",
-            youtube: "YouTube",
-        };
-        return labels[platform] || platform;
-    };
-
-    const formatContentTypeLabel = (value) => {
-        const [platform, type] = value.split(":");
-        const typeLabels = {
-            reel: "Reel",
-            carousel: "Carousel",
-            story: "Story",
-            post: "Post",
-            quote: "Quote",
-            shorts: "Shorts",
-            video: "Long Video",
-            community: "Community Post",
-        };
-
-        const platformLabel = formatPlatformLabel(platform);
-        const typeLabel = typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1);
-
-        return `${platformLabel} ${typeLabel}`;
-    };
-
-    const formatContentTypePrompt = (value) => {
-        const [, type] = value.split(":");
-        const typeLabels = {
-            reel: "Reel",
-            carousel: "Carousel",
-            story: "Story",
-            post: "Post",
-            quote: "Quote",
-            shorts: "Shorts",
-            video: "Long Video",
-            community: "Community Post",
-        };
-        return typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1);
-    };
 
     const handleGenerate = async () => {
 
@@ -147,26 +106,8 @@ export default function AIStudio() {
                 platform: output.platform, format: output.format, index, file: manualFiles[`${output.key}:${index}`],
             })).filter(item => item.file));
 
-            const payload = {
-                project_id: selectedProjectId,
-                platforms: selectedPlatforms.map(formatPlatformLabel),
-                content_types: Array.from(
-                    new Set(selectedContent.map(formatContentTypePrompt)),
-                ),
-                outputs: selectedContent.map((item) => {
-                    const [platform, type] = item.split(":");
-                    return `${formatPlatformLabel(platform)}: ${formatContentTypePrompt(item)}`;
-                }),
-                niche: selectedNiche,
-                topic: selectedTopic,
-                package: selectedPackage,
-                language: ["quote","reel","carousel","story"].includes(selectedPackage) || hasQuoteOutput ? generationOptions.language : (selectedProject?.language || "English"),
-                scene_count: ["reel","carousel","story"].includes(selectedPackage) ? generationOptions.scene_count : undefined,
-                total_duration: selectedPackage === "reel" ? generationOptions.total_duration : undefined,
-                style: ["reel","carousel","story"].includes(selectedPackage) ? generationOptions.style : undefined,
-                provider: selectedProvider,
-                visual_style: visualStyle,
-            };
+            const payload = studioGenerationPayload({ selectedProjectId, selectedPlatforms, selectedContent,
+                selectedNiche, selectedTopic, selectedPackage, generationOptions, selectedProvider, visualStyle, contentGoal });
 
             const response = await generateContent(payload);
 
@@ -315,6 +256,9 @@ export default function AIStudio() {
 
             <TrendingTopics
                 niche={selectedNiche}
+                projectId={selectedProjectId}
+                platform={selectedPlatforms.join(", ")}
+                contentType={selectedContent.join(", ")}
                 onSelect={setSelectedTopic}
             />
 
@@ -333,20 +277,22 @@ export default function AIStudio() {
                     const defaults = value === "carousel" ? { scene_count: 5, total_duration: 25, style: "Educational" } : value === "story" ? { scene_count: 7, total_duration: 35, style: "Emotional" } : value === "reel" ? { scene_count: 7, total_duration: 30, style: "Energetic" } : {};
                     setGenerationOptions((current) => ({ ...current, ...defaults }));
                 }}
-                quoteLanguage={quoteLanguage}
-                onQuoteLanguageChange={(language) => { setQuoteLanguage(language); setGenerationOptions((current) => ({ ...current, language })); }}
+                disabled={loading}
                 showQuoteOptions={hasQuoteOutput}
                 options={generationOptions}
                 onOptionsChange={setGenerationOptions}
             />
 
             <div className="bg-white rounded-3xl shadow-lg p-6 mt-6">
+                <div className="mb-4"><ContentGoalSelector value={contentGoal} onChange={setContentGoal} disabled={loading} /></div>
                 <UserProviderSelector value={selectedProvider} onChange={setSelectedProvider} disabled={loading} />
             </div>
 
             <VisualStyleSelector value={visualStyle} onChange={setVisualStyle} topic={selectedTopic} brandName={selectedBrand?.name || ""} logo={assetUrl(selectedBrand?.logo)} disabled={loading} />
 
             <SummaryPanel
+                language={generationOptions.language}
+                contentGoal={contentGoal}
                 visualStyle={getVisualStyle(visualStyle)?.name}
                 platforms={selectedPlatforms}
                 contents={selectedContent}

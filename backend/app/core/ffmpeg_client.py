@@ -71,7 +71,7 @@ class FFmpegClient:
         return {"success": True, "output": output_path}
 
     @staticmethod
-    def render_media(video_path: str, output_path: str, duration: int = 5, audio_path: str | None = None, width: int = 1080, height: int = 1920, overlay_text: str = "", username: str = "", logo_path: str | None = None, text_x_pct: float | None = None, text_y_pct: float | None = None, logo_x_pct: float | None = None, logo_y_pct: float | None = None, username_x_pct: float | None = None, username_y_pct: float | None = None, transition: str = "fade", visual_style: str | None = None, as_image: bool = False, overlay_opacity: dict | None = None, platform: str | None = None):
+    def render_media(video_path: str, output_path: str, duration: int = 5, audio_path: str | None = None, width: int = 1080, height: int = 1920, overlay_text: str = "", username: str = "", logo_path: str | None = None, text_x_pct: float | None = None, text_y_pct: float | None = None, logo_x_pct: float | None = None, logo_y_pct: float | None = None, username_x_pct: float | None = None, username_y_pct: float | None = None, transition: str = "fade", visual_style: str | None = None, as_image: bool = False, overlay_opacity: dict | None = None, platform: str | None = None, entrance_transition: bool = False):
         """Normalize an image/video scene to MP4, with optional narration."""
         ffmpeg = FFmpegClient.check_ffmpeg()
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -126,14 +126,19 @@ class FFmpegClient:
         text_x, text_y = position(text_x_pct, defaults["text"]["x"]), position(text_y_pct, defaults["text"]["y"])
         logo_x, logo_y = position(logo_x_pct, defaults["logo"]["x"]), position(logo_y_pct, defaults["logo"]["y"])
         username_x, username_y = position(username_x_pct, defaults["username"]["x"]), position(username_y_pct, defaults["username"]["y"])
-        fade_filter = f"fade=t=in:st=0:d=0.25,fade=t=out:st={max(0.3, duration - 0.35)}:d=0.35," if transition == "fade" and not as_image else ""
+        # Standalone/first scenes start fully visible; only later scenes enter.
+        fade_filter = ""
+        if transition == "fade" and not as_image:
+            if entrance_transition:
+                fade_filter += "fade=t=in:st=0:d=0.25,"
+            fade_filter += f"fade=t=out:st={max(0.3, duration - 0.35)}:d=0.35,"
         media_x, media_y, media_w, media_h = preset["mediaRect"] if preset else (0, 0, 1, 1)
         fit_width, fit_height = max(2, round(width * media_w / 2) * 2), max(2, round(height * media_h / 2) * 2)
         offset_x, offset_y = round(width * media_x / 2) * 2, round(height * media_y / 2) * 2
         background = preset["background"] if preset else "black"
         focus_y = preset.get("mediaFocusY", .5) if preset else .5
         base_filter = (
-            f"scale={fit_width}:{fit_height}:force_original_aspect_ratio=increase,crop={fit_width}:{fit_height}:(iw-ow)/2:(ih-oh)*{focus_y},"
+            f"setpts=PTS-STARTPTS,scale={fit_width}:{fit_height}:force_original_aspect_ratio=increase,crop={fit_width}:{fit_height}:(iw-ow)/2:(ih-oh)*{focus_y},"
             f"pad={width}:{height}:{offset_x}:{offset_y}:color={background},fps=30,"
             "eq=contrast=1.035:saturation=1.08,"
             f"{fade_filter}"
@@ -427,6 +432,9 @@ class FFmpegClient:
             "-i",
             concat_file,
 
+            # AAC priming in the concat input can offset the first video PTS.
+            # Anchor visuals independently; keep narration/music timing intact.
+            "-vf", "setpts=PTS-STARTPTS",
             "-c:v", "libx264",
             "-preset", "fast",
             "-crf", "23",

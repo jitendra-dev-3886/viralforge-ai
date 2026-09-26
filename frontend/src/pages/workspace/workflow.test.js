@@ -1,8 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { INITIAL_BRIEF, generationPayload, contentPatch, scenePatch, latestVoices, staleVoiceScenes, restoreDraft, assertSuccess } from "./workflow.js";
+import { INITIAL_BRIEF, generationPayload, contentPatch, scenePatch, latestVoices, staleVoiceScenes, restoreDraft, assertSuccess, publishingAssets, publishingSelectionError } from "./workflow.js";
 
 const brief = { ...INITIAL_BRIEF, projectId: "7", topic: " Daily habits ", niche: "Education" };
+
+test("scheduling uses latest finished exports in numerical slide order", () => {
+    const content = { id: 7, platform: "Instagram", content_type: "Carousel" };
+    const media = [
+        { id: 1, file_name: "content_7_scene_1.jpg", media_type: "image", status: "ready" },
+        { id: 2, file_name: "content_8_scene_1_final.png", media_type: "image", status: "ready" },
+        { id: 3, file_name: "content_7_scene_2_final.png", media_type: "image", status: "ready" },
+        { id: 4, file_name: "content_7_scene_1_final.png", media_type: "image", status: "ready" },
+        { id: 5, file_name: "content_7_scene_1_final.png", media_type: "image", status: "ready" },
+        { id: 6, file_name: "content_7_final.mp4", media_type: "final", status: "ready" },
+    ];
+    const selected = publishingAssets(content, media);
+    assert.deepEqual(selected.map(item => item.id), [5, 3]);
+    assert.equal(publishingSelectionError(content, selected, [{ scene_number: 1 }, { scene_number: 2 }]), "");
+    assert.match(publishingSelectionError(content, selected.slice(0, 1), [{ scene_number: 1 }, { scene_number: 2 }]), /every carousel slide/);
+    assert.match(publishingSelectionError(content, [...selected].reverse(), [{ scene_number: 1 }, { scene_number: 2 }]), /scene order/);
+    assert.deepEqual(publishingAssets({ ...content, content_type: "Reel" }, media).map(item => item.id), [6]);
+    for (const content_type of ["Post", "Quote"]) {
+        assert.equal(publishingSelectionError({ ...content, content_type }, [selected[0]]), "");
+        assert.match(publishingSelectionError({ ...content, content_type }, selected), /one finished image/);
+    }
+    assert.match(publishingSelectionError({ ...content, platform: "YouTube", content_type: "Community Post" }, [selected[0]]), /manual publishing/);
+});
+
+test("goals are forwarded and legacy briefs keep the default behavior", () => {
+    for (const contentGoal of ["Reach", "Shares", "Saves", "Comments", "Followers"]) {
+        assert.equal(generationPayload({ ...brief, contentGoal }).content_goal, contentGoal);
+    }
+    for (const contentGoal of [undefined, null, ""]) {
+        assert.equal("content_goal" in generationPayload({ ...brief, contentGoal }), false);
+    }
+    assert.throws(() => generationPayload({ ...brief, contentGoal: "Likes" }), /supported content goal/);
+});
 
 test("generation targets exactly the selected platform and format", () => {
     const payload = generationPayload({ ...brief, platform: "YouTube", format: "Shorts", language: "Hindi", visualStyle: "cinematic" });
@@ -31,6 +64,14 @@ test("copy edits do not overwrite media, branding, or approval status", () => {
     assert.equal("generation_config" in patch, false);
     assert.equal("status" in patch, false);
     assert.equal("project_id" in patch, false);
+});
+
+test("description and keyword edits are saved without replacing generation configuration", () => {
+    const patch = contentPatch({ description: "How to budget a raise.", keywords: ["lifestyle inflation", "salary budget"], generation_config: { audio: { music_id: 3 } } });
+    assert.equal(patch.description, "How to budget a raise.");
+    assert.equal(patch.keywords, "lifestyle inflation,salary budget");
+    assert.equal("generation_config" in patch, false);
+    assert.equal("description" in contentPatch({ caption: "Old draft" }), false);
 });
 
 test("scene validation happens before saving and preserves separate narration", () => {

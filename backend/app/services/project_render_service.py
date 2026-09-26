@@ -145,18 +145,10 @@ class ProjectRenderService:
                     DownloaderService.download(db=db, scene_id=scene.id, user_id=user_id)
                     db.refresh(scene)
                 except Exception as exc:
-                    fallback_scene = next((item for item in reversed(scenes) if item.scene_number < scene.scene_number and item.media_id and item.media and ProjectRenderService._media_path(item.media.file_path).exists()), None)
-                    if fallback_scene is None:
-                        fallback_scene = next((item for item in scenes if item.media_id and item.media and ProjectRenderService._media_path(item.media.file_path).exists()), None)
-                    if fallback_scene is None:
-                        raise HTTPException(
-                            status_code=422,
-                            detail=f"Scene {scene.scene_number} has no media and automatic download failed: {exc}",
-                        ) from exc
-                    scene.media_id = fallback_scene.media_id
-                    scene.status = "media_fallback"
-                    db.commit()
-                    db.refresh(scene)
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Scene {scene.scene_number} has no matching media. Choose a relevant Pexels/Pixabay result or upload media in the Media step before exporting.",
+                    ) from exc
 
             # Rebuild on an explicit merge so added, replaced, or deleted
             # narration and overlay changes cannot reuse stale scene audio.

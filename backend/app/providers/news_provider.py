@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 
 from newsapi import NewsApiClient
 
@@ -19,7 +20,8 @@ class NewsProvider:
                 response = self.client.get_everything(
                     q=query,
                     language="en",
-                    sort_by="publishedAt",
+                    sort_by="popularity",
+                    from_param=(datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d"),
                     page_size=min(limit, 100),
                 )
             else:
