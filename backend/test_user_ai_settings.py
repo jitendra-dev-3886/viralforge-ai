@@ -149,6 +149,9 @@ class UserAiTests(unittest.TestCase):
     def test_generation_without_personal_settings_makes_no_provider_request(self):
         request = GenerateRequest(project_id=1, platforms=["Instagram"], content_types=["Reel"], niche="Education", topic="Learning", package="reel")
         db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+            title="Learning", topic="Learning", niche="Education", brand=None, brand_id=None)
+        db.query.return_value.join.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         with patch("app.services.user_ai_settings.settings_for", return_value=[]), patch("app.services.ai_service.generate_user_content") as provider:
             with self.assertRaises(Exception) as error:
                 AIService.generate(request, db, 1)

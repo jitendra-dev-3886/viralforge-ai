@@ -11,6 +11,11 @@ ENDPOINTS = {
 }
 
 
+class ProviderTruncatedResponse(ValueError):
+    """The provider exhausted its output budget before finishing."""
+
+
+
 class ProviderAuth(requests.auth.AuthBase):
     """Explicit auth prevents Requests from replacing headers with local netrc auth."""
     def __init__(self, key, google=False):
@@ -28,6 +33,11 @@ def generate_user_content(provider, prompt, credentials, *, max_tokens=None):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{quote(model.removeprefix('models/'), safe='')}:generateContent"
         headers = {"x-goog-api-key": key}
         body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}}
+        # Thinking shares the output budget with the JSON on Gemini 2.5.
+        # Keep room for scene copy without sending unsupported options to
+        # older models or models with a different thinking API.
+        if model.removeprefix("models/").startswith("gemini-2.5-"):
+            body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 1024}
     else:
         if provider == "cloudflare":
             account = credentials.get("account_id", "")
@@ -71,8 +81,10 @@ def generate_user_content(provider, prompt, credentials, *, max_tokens=None):
     data = response.json()
     if provider == "gemini":
         candidates = data.get("candidates") or []
-        if not candidates or candidates[0].get("finishReason") == "MAX_TOKENS":
-            raise ValueError("Provider returned empty or truncated content")
+        if candidates and candidates[0].get("finishReason") == "MAX_TOKENS":
+            raise ProviderTruncatedResponse("Provider exhausted its output token budget")
+        if not candidates:
+            raise ValueError("Provider returned no candidates")
         text = "".join(part.get("text", "") for part in candidates[0].get("content", {}).get("parts", []) if not part.get("thought"))
     else:
         choices = data.get("choices") or []

@@ -30,7 +30,10 @@ from app.api.admin import router as admin_router
 from app.api.schedule import router as schedule_router
 from app.api.social_connections import router as social_connections_router
 from app.services.publishing_worker import run_worker
+from app.api.automation import router as automation_router
+from app.services.automation_service import run_worker as run_automation_worker
 from app.core.publishing_schema import ensure_publishing_request_keys
+from app.core.automation_schema import ensure_automation_active_user
 
 
 from app import models
@@ -43,6 +46,7 @@ from app import models
 Base.metadata.create_all(bind=engine)
 with engine.begin() as schema_connection:
     ensure_publishing_request_keys(schema_connection)
+    ensure_automation_active_user(schema_connection)
 with SessionLocal() as billing_db:
     seed_plans(billing_db)
 
@@ -54,6 +58,10 @@ with SessionLocal() as billing_db:
 @asynccontextmanager
 async def lifespan(app):
     stop = threading.Event()
+    automation_worker = None
+    if os.getenv("AUTO_GENERATION_ENABLED", "true").lower() == "true":
+        automation_worker = threading.Thread(target=run_automation_worker, args=(stop,), daemon=True, name="content-automation")
+        automation_worker.start()
     worker = None
     if os.getenv("AUTO_PUBLISH_ENABLED", "true").lower() == "true":
         worker = threading.Thread(target=run_worker, args=(stop,), daemon=True, name="social-publishing")
@@ -62,6 +70,8 @@ async def lifespan(app):
     stop.set()
     if worker:
         worker.join(timeout=2)
+    if automation_worker:
+        automation_worker.join(timeout=2)
 
 
 app = FastAPI(
@@ -129,6 +139,7 @@ app.include_router(analytics_router)
 app.include_router(niche_router)
 app.include_router(admin_router)
 app.include_router(schedule_router)
+app.include_router(automation_router)
 app.include_router(social_connections_router)
 
 

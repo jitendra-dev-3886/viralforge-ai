@@ -4,9 +4,44 @@ from types import SimpleNamespace
 
 from app.services.ai_service import AIService
 from app.core.gemini_client import GeminiClient
+from app.core.user_ai_client import generate_user_content, ProviderTruncatedResponse
 
 
 class AiRecoveryTests(unittest.TestCase):
+    def test_gemini_truncation_retries_with_more_output_room(self):
+        truncated = SimpleNamespace(status_code=200, json=lambda: {
+            "candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": '{"title":'}]}}]})
+        complete = SimpleNamespace(status_code=200, json=lambda: {
+            "candidates": [{"finishReason": "STOP", "content": {"parts": [
+                {"text": "private reasoning", "thought": True}, {"text": '{"title":"Recovered"}'}]}}]})
+        with patch("app.core.user_ai_client.requests.post", side_effect=[truncated, complete]) as post:
+            _, _, data = AIService._generate_validated_response("gemini", None, "prompt",
+                credentials={"api_key": "test-key", "model": "models/gemini-2.5-flash"})
+        self.assertEqual(data["title"], "Recovered")
+        configs = [call.kwargs["json"]["generationConfig"] for call in post.call_args_list]
+        self.assertEqual([config["maxOutputTokens"] for config in configs], [8192, 16384])
+        self.assertEqual(configs[0]["thinkingConfig"], {"thinkingBudget": 1024})
+
+    def test_gemini_repeated_truncation_is_bounded_and_classified(self):
+        response = SimpleNamespace(status_code=200, json=lambda: {
+            "candidates": [{"finishReason": "MAX_TOKENS"}]})
+        with patch("app.core.user_ai_client.requests.post", return_value=response) as post:
+            with self.assertRaises(ProviderTruncatedResponse) as caught:
+                AIService._generate_validated_response("gemini", None, "prompt",
+                    credentials={"api_key": "test-key", "model": "gemini-2.5-pro"})
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(AIService._provider_failure([("gemini", caught.exception)]).detail["code"], "ai_response_truncated")
+
+    def test_other_gemini_models_and_explicit_token_limits(self):
+        response = SimpleNamespace(status_code=200, json=lambda: {
+            "candidates": [{"content": {"parts": [{"text": '{"title":"OK"}'}]}}]})
+        for model in ("gemini-2.0-flash", "gemini-3-pro-preview", "custom-model"):
+            with self.subTest(model=model), patch("app.core.user_ai_client.requests.post", return_value=response) as post:
+                generate_user_content("gemini", "prompt", {"api_key": "test-key", "model": model}, max_tokens=32)
+                config = post.call_args.kwargs["json"]["generationConfig"]
+                self.assertNotIn("thinkingConfig", config)
+                self.assertEqual(config["maxOutputTokens"], 32)
+
     def test_truncated_outer_object_does_not_accept_nested_scene(self):
         with self.assertRaises(ValueError):
             AIService._parse_json_response('{"title":"Test","scenes":[{"text":"hello"}')

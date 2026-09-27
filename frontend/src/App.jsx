@@ -41,6 +41,7 @@ import { lazy, Suspense, useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
 const BillingPage = lazy(() => import("./pages/settings/BillingPage"));
 const CreationWorkspace = lazy(() => import("./pages/workspace/CreationWorkspace"));
+const AutoMode = lazy(() => import("./pages/settings/AutoMode"));
 
 function AdminRoute() {
     const { user } = useContext(AuthContext);
@@ -84,6 +85,7 @@ function App() {
 
                     <Route element={<AppShell />}>
                     <Route path="/billing" element={<Suspense fallback={<p>Loading plans...</p>}><BillingPage /></Suspense>} />
+                    <Route path="/auto-mode" element={<Suspense fallback={<p>Loading Auto Mode...</p>}><AutoMode /></Suspense>} />
                     <Route path="/creation-workspace" element={<Suspense fallback={<p role="status" className="p-6 text-slate-500">Loading creation workspace...</p>}><CreationWorkspace /></Suspense>} />
 
                     <Route

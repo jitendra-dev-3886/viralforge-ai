@@ -16,7 +16,7 @@ DEFAULT_NICHES = [
     ("Cosmic Knowledge", "Space, universe and cosmic mysteries", "🌌", "indigo"),
     ("Psychology", "Human behavior and the mind", "🧠", "violet"),
     ("Love & Romance", "Love, attraction and relationships", "❤️", "rose"),
-    ("AI & Technology", "AI, coding, web and future technology", "🤖", "blue"),
+    ("AI & Technology", "Practical AI and software engineering education for students, interns, developers and professionals", "🤖", "blue"),
 ]
 
 

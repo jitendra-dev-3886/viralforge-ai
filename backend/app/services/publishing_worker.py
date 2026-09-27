@@ -52,6 +52,17 @@ def process_job(db, job_id, publisher=publish):
         job.status = "processing"
         job.next_attempt_at = now() + timedelta(seconds=20)
     except (ProviderError, HTTPException) as exc:
+        retries = (job.provider_state or {}).get("media_download_retries", 0)
+        if isinstance(exc, ProviderError) and exc.retryable and not exc.uncertain and not exc.reconnect and retries < 2:
+            job.provider_state = {**(job.provider_state or {}), "media_download_retries": retries + 1}
+            delay = 30 * (retries + 1)
+            job.status = "queued"
+            job.next_attempt_at = now() + timedelta(seconds=delay)
+            schedule.status = "scheduled"
+            schedule.error_message = f"Instagram media download timed out. Retry {retries + 1}/2 in {delay} seconds."
+            event(db, job, "queued", schedule.error_message)
+            db.commit()
+            return
         uncertain = isinstance(exc, ProviderError) and exc.uncertain
         job.status = "needs_review" if uncertain else "failed"
         message = str(exc) if isinstance(exc, ProviderError) else str(exc.detail)

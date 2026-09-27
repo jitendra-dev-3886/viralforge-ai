@@ -251,6 +251,7 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
                         {content.description && <p className="mt-2 text-slate-600">{content.description}</p>}
                     </div>
                     {content.hook && <div><strong>Hook</strong><p className="mt-1 text-slate-700">{content.hook}</p></div>}
+                    {content.generation_config?.generation_warnings?.map((warning, index) => <p key={index} role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>)}
                     {content.story && <div><strong>Carousel story</strong><p className="mt-1 text-slate-700">{content.story}</p></div>}
                     {content.script && <div><strong>Voiceover</strong><p className="mt-1 whitespace-pre-line text-slate-700">{content.script}</p></div>}
                     {content.caption && <div><strong>Caption</strong><p className="mt-1 whitespace-pre-line text-slate-700">{content.caption}</p></div>}

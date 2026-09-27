@@ -42,6 +42,7 @@ const menus = [
         path: "/ai-studio",
     },
     { name: "Creation Workspace", icon: Workflow, path: "/creation-workspace" },
+    { name: "Auto Mode", icon: CalendarDays, path: "/auto-mode" },
 
     {
         name: "Brands",

@@ -21,7 +21,7 @@ router = APIRouter(
 def trending(niche: Optional[str] = None, limit: int = 10, project_id: Optional[int] = None,
              platform: str = "", content_type: str = "", db: Session = Depends(get_db),
              user_id: int = Depends(get_current_user_id)):
-    brand = None
+    brand = project = None
     if project_id:
         project = db.query(Project).filter(Project.id == project_id, Project.user_id == user_id).first()
         if not project:
@@ -36,5 +36,6 @@ def trending(niche: Optional[str] = None, limit: int = 10, project_id: Optional[
 
     return TrendService.get_trending(niche=niche, limit=limit, user_id=user_id,
                                     credentials=credentials_for(db, user_id), boundary=boundary,
-                                    brand=f"{getattr(brand, 'name', '')}: {getattr(brand, 'description', '')}",
+                                    brand=f"{getattr(brand, 'name', '')}: {getattr(brand, 'description', '')}"
+                                          + (f"\nProject: {project.title}; Topic: {project.topic}; Niche: {project.niche or ''}" if project else ""),
                                     platform=platform, content_type=content_type)

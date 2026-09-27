@@ -3,7 +3,7 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import requests
 from cryptography.fernet import Fernet, InvalidToken
@@ -42,10 +42,11 @@ def digest(value):
 
 
 class ProviderError(Exception):
-    def __init__(self, message, uncertain=False, reconnect=False):
+    def __init__(self, message, uncertain=False, reconnect=False, retryable=False):
         super().__init__(message)
         self.uncertain = uncertain
         self.reconnect = reconnect
+        self.retryable = retryable
 
 
 def request(method, url, **kwargs):
@@ -55,15 +56,41 @@ def request(method, url, **kwargs):
     except requests.RequestException:
         raise ProviderError("The platform connection was interrupted. Check the platform before posting again.", uncertain=True) from None
     if response.status_code >= 400:
-        code = None
+        code, subcode = None, None
         try:
-            error = response.json().get("error", {})
+            body = response.json()
+            error = body.get("error", {}) if isinstance(body, dict) else {}
             code = error.get("code") if isinstance(error, dict) else error
+            subcode = error.get("error_subcode") if isinstance(error, dict) else None
         except ValueError:
             pass
         reconnect = response.status_code == 401 or code in (190, "invalid_grant")
-        message = "Reconnect this account to renew publishing permission." if reconnect else f"Platform rejected the request (HTTP {response.status_code}). Check permissions, media requirements and quota."
-        raise ProviderError(message, uncertain=response.status_code >= 500, reconnect=reconnect)
+        # Preserve diagnostic codes, never arbitrary provider text: error
+        # messages can echo access tokens, signed media URLs or credentials.
+        details = [f"HTTP {response.status_code}"]
+        for label, value in (("code", code), ("subcode", subcode)):
+            if type(value) is int or (isinstance(value, str) and value.lstrip("-").isdigit() and len(value) <= 12):
+                details.append(f"{label} {value}")
+        parsed = urlparse(url)
+        platform = {"graph.instagram.com": "Instagram", "api.instagram.com": "Instagram",
+                    "graph.facebook.com": "Facebook", "rupload.facebook.com": "Facebook",
+                    "www.googleapis.com": "YouTube", "oauth2.googleapis.com": "Google"}.get(parsed.hostname, "Platform")
+        stage = "request"
+        if platform == "Instagram" and method.upper() == "POST":
+            if parsed.path.endswith("/media"):
+                stage = "media preparation"
+            elif parsed.path.endswith("/media_publish"):
+                stage = "publication"
+        message = f"{platform} rejected {stage} ({', '.join(details)}). "
+        download_timeout = platform == "Instagram" and code in (-2, "-2") and subcode in (2207003, "2207003")
+        if download_timeout:
+            message += "Instagram took too long to download the media. Keep the media server and tunnel online; if this repeats, use a faster public media host."
+        else:
+            message += "Reconnect this account to renew publishing permission." if reconnect else "Check permissions, media access and requirements, and quota."
+        # Only an explicit rejected container-creation request is retryable.
+        # Network interruptions and final publication remain ambiguous.
+        retryable = download_timeout and response.status_code == 400 and stage == "media preparation"
+        raise ProviderError(message, uncertain=response.status_code >= 500, reconnect=reconnect, retryable=retryable)
     if 300 <= response.status_code < 400:
         raise ProviderError("The platform returned an unexpected redirect.", uncertain=True)
     return response

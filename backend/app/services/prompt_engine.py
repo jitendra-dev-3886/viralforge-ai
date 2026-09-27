@@ -1,7 +1,7 @@
 import json
 import re
 
-from app.config.prompt_config import SYSTEM_PROMPT, VISUAL_NICHE_BOUNDARIES
+from app.config.prompt_config import SYSTEM_PROMPT, VISUAL_NICHE_BOUNDARIES, tech_education_direction
 from app.core.visual_style import get_style
 
 
@@ -52,6 +52,7 @@ class PromptEngine:
         quote_rules = ""
         visual = get_style(data.visual_style)
         visual_direction = f'{visual["name"]}: {visual["description"]}' if visual else "Default"
+        education_direction = tech_education_direction(data.niche, getattr(brand, "name", None), getattr(brand, "niche", None))
         normalize = lambda value: re.sub(r"[^a-z0-9]", "", str(value or "").lower())
         boundary = None
         for identity in (getattr(brand, "name", None), data.niche, getattr(brand, "niche", None)):
@@ -166,6 +167,11 @@ Target total duration: {total_duration} seconds{goal_direction}
 {metadata_direction}
 
 Return ONLY one valid JSON object. Do not use Markdown, comments, code fences, or text before or after the JSON. Use normal JSON double quotes. Never include an unescaped double quote inside a string.
+For every selected platform/format pair, create a distinct caption angle and distinct scene visual compositions.
+Compare against the other outputs supplied in the brief. Changing punctuation, adding a platform name or
+reordering the same visuals does not make a new version. Keep the same topic and facts, but choose a new
+example, demonstration, viewpoint or composition appropriate to this format. Never copy a previous scene's
+visual_plan, even if the rest of the sequence differs. Check these distinctions before returning the JSON.
 
 Use this exact top-level shape:
 {{
@@ -196,6 +202,7 @@ Use keyword as the canonical stock search phrase: name the distinguishing subjec
 
 Set every scene media_type to "{media_type}". Do not create any other platform or content format. For a carousel, set story to all scene text values joined in order, preserving the ending; otherwise story can be empty.
 {quote_rules}
+{education_direction}
 """.strip()
 
     @staticmethod

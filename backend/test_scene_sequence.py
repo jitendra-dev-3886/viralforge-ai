@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from app.config.prompt_config import VISUAL_NICHE_BOUNDARIES
 
 from app.schemas.ai import GenerateRequest
-from app.services.ai_service import AIService
+from app.services.ai_service import AIService, ContentValidationError
 from app.services.prompt_engine import PromptEngine
 
 
@@ -100,6 +100,29 @@ class SceneSequenceTests(unittest.TestCase):
             _, _, content = AIService._generate_validated_response("test", request, PromptEngine.build(request))
         self.assertEqual(generate.call_count, 2)
         self.assertEqual(len(content["scenes"]), 5)
+        self.assertIn("Fix this specific validation failure: Expected a complete sequence of 5 scenes", generate.call_args.args[1])
+
+    def test_wrapped_content_returns_the_validated_object(self):
+        for wrap in (lambda item: {"content": item}, lambda item: {"instagram": {"carousel": item}}):
+            with self.subTest(wrap=wrap):
+                raw = wrap(self.content())
+                with patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(raw), "model")) as generate:
+                    _, _, data = AIService._generate_validated_response("gemini", self.request(), "prompt")
+                self.assertEqual(generate.call_count, 1)
+                self.assertEqual(len(data["scenes"]), 5)
+                self.assertEqual(data["script"], " ".join(scene["text"] for scene in data["scenes"]))
+
+    def test_content_failure_reports_actual_requirement(self):
+        bad = self.content()
+        del bad["scenes"][0]["voice_text"]
+        with patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(bad), "model")) as generate:
+            with self.assertRaises(ContentValidationError) as caught:
+                AIService._generate_validated_response("gemini", self.request("Reel"), "prompt")
+        self.assertEqual(generate.call_count, 2)
+        self.assertIn("Every video scene needs its own narration", generate.call_args.args[1])
+        failure = AIService._provider_failure([("gemini", caught.exception)])
+        self.assertEqual(failure.detail["code"], "ai_content_validation")
+        self.assertIn("Every video scene needs its own narration", failure.detail["message"])
 
     def test_quote_remains_one_self_contained_scene(self):
         request = self.request("Quote", 5)
@@ -108,6 +131,42 @@ class SceneSequenceTests(unittest.TestCase):
         AIService._validate_scene_sequence(content, request)
         self.assertEqual(content["script"], content["scenes"][0]["text"])
         self.assertIn("exactly one original two-line", PromptEngine.build(request))
+
+    def test_repeated_visual_plan_is_rejected_after_retry(self):
+        content = self.content()
+        for index, scene in enumerate(content["scenes"]):
+            scene["visual_plan"] = f"Tomato growing step {index}"
+        previous = [{"generation_config": {"visual_plan": [scene["visual_plan"] for scene in content["scenes"]]}}]
+        with patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(content), "model")) as generate:
+            with self.assertRaisesRegex(ContentValidationError, "distinct visual plan"):
+                AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
+        self.assertEqual(generate.call_count, 2)
+        self.assertIn("distinct visual plan", generate.call_args.args[1])
+
+    def test_partial_visual_reuse_and_caption_reuse_cannot_be_softened(self):
+        for field in ("caption", "visual"):
+            content = self.content()
+            content["caption"] = "Learn to grow tomatoes"
+            content["scenes"][0]["visual_plan"] = "Closeup of planting tomato seeds"
+            previous = {"title": content["title"]}
+            if field == "caption":
+                previous["caption"] = "Learn to grow tomatoes!"
+            else:
+                previous["generation_config"] = {"visual_plan": ["Closeup of planting tomato seeds", "Harvesting tomatoes"]}
+            with self.subTest(field=field), patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(content), "model")) as generate:
+                with self.assertRaisesRegex(ContentValidationError, "distinct caption|distinct visual plan"):
+                    AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=[previous])
+                self.assertEqual(generate.call_count, 2)
+
+    def test_similarity_does_not_bypass_incomplete_scenes_on_retry(self):
+        content = self.content()
+        previous = [{"title": content["title"]}]
+        with patch.object(AIService, "_generate_from_provider", side_effect=[
+            (json.dumps(content), "model"), (json.dumps(self.content(2)), "model")
+        ]) as generate:
+            with self.assertRaises(ContentValidationError):
+                AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
+        self.assertEqual(generate.call_count, 2)
 
     def test_retry_preserves_completeness_instructions(self):
         prompt = PromptEngine.build_json_retry(self.request(count=10))

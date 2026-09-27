@@ -271,6 +271,43 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(publisher.call_count, 1)
         self.assertEqual(self.db.get(Schedule, schedule["id"]).status, "needs_review")
 
+    def test_media_download_timeout_retries_twice_and_preserves_carousel_progress(self):
+        job, schedule = self.job()
+        job.provider_state = {"children": ["completed-slide"]}
+        self.db.commit()
+        publisher = Mock(side_effect=ProviderError("Instagram media download timed out", retryable=True))
+        for retry in range(2):
+            job.next_attempt_at = now() - timedelta(seconds=1)
+            self.db.commit()
+            process_job(self.db, job.id, publisher)
+            self.assertEqual(job.status, "queued")
+            self.assertEqual(job.provider_state["children"], ["completed-slide"])
+            self.assertEqual(job.provider_state["media_download_retries"], retry + 1)
+            self.assertGreater(job.next_attempt_at.replace(tzinfo=now().tzinfo), now())
+            process_job(self.db, job.id, publisher)  # Delay prevents immediate repeats.
+            self.assertEqual(publisher.call_count, retry + 1)
+        job.next_attempt_at = now() - timedelta(seconds=1)
+        self.db.commit()
+        process_job(self.db, job.id, publisher)
+        self.assertEqual(job.status, "failed")
+        self.assertEqual(publisher.call_count, 3)
+        self.assertEqual(self.db.get(Schedule, schedule["id"]).error_message, "Instagram media download timed out")
+
+    def test_recovered_download_clears_error(self):
+        job, schedule = self.job()
+        process_job(self.db, job.id, Mock(side_effect=ProviderError("Download timed out", retryable=True)))
+        job.next_attempt_at = now() - timedelta(seconds=1)
+        self.db.commit()
+        process_job(self.db, job.id, Mock(return_value=("post", None, "published")))
+        self.assertEqual(job.status, "published")
+        self.assertIsNone(self.db.get(Schedule, schedule["id"]).error_message)
+
+    def test_download_retry_can_be_cancelled(self):
+        other, scheduled = self.job()
+        process_job(self.db, other.id, Mock(side_effect=ProviderError("Download timed out", retryable=True)))
+        update_schedule(scheduled["id"], ScheduleUpdate(status="cancelled"), self.db, 1)
+        self.assertEqual(other.status, "cancelled")
+
     def test_processing_is_polled_and_private_upload_is_not_marked_public(self):
         job, schedule = self.job()
         process_job(self.db, job.id, Mock(side_effect=Pending()))

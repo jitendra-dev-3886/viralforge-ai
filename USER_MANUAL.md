@@ -191,3 +191,17 @@ allowance. Ordinary render failures release reservations automatically.
 Restart the backend after updating: startup creates `billing_plans`,
 `export_usage`, and `plan_grants`, then seeds missing catalog entries. Access
 periods use the existing `subscriptions` table. No payment credentials are needed.
+
+## Auto Mode
+
+Open **Auto Mode** in the sidebar to generate recurring content separately from manual creation. Create one schedule per format and time; for example, an Instagram carousel at 09:00 and a Reel at 18:00. Select a project, niche, language, writing tone, visual style, weekdays and timezone. At each run, Auto Mode uses the existing trend ranking to choose the top unused live topic for that niche, project and format. It checks saved project topics and source titles to avoid reuse, displays the chosen topic in run history, and skips when no suitable unused trend is available. Older schedules also use this automatic selection instead of their previously entered topic.
+
+- **Save a draft for my approval:** generates and exports content, then leaves it for review. Use **Review content** to edit or approve, then **Approve and schedule** to choose the posting account and time in Scheduler. Approval alone does not publish a draft.
+- **Publish automatically:** authorizes generation, export and posting to the selected connected account. YouTube visibility and audience are configurable. Stories currently support drafts only.
+- **Prepare ahead:** starts generation this many minutes before the chosen time (30 by default). Saving or resuming selects the next occurrence with enough preparation time. Keep the backend running; missed posting times are skipped, and a late automatic export stays for review.
+- **Pause:** stops future generation and prevents an in-progress generation from queuing a post. Already queued posts remain in Scheduler and can be cancelled there.
+- **Voice and music (videos):** narration is generated for every scene by default, using a voice matching the narration language. Choose a voice and pace, or turn narration off. Select an uploaded project music track and volume; upload a track once in Auto Mode if none is available, then save the schedule. These settings apply to future runs. Failed narration or missing selected music stops automatic posting and leaves the run for review.
+
+Auto Mode reuses project branding, configured AI providers, stock media and normal export allowances. It uses the latest 30 content items to discourage repeated angles and block matching or near-identical text and reused visual URLs. This reduces repetition; it does not guarantee semantic or visual uniqueness. Failed runs and interrupted work are retained for review rather than automatically retried.
+
+Server setup: install `backend/requirements.txt` and restart the backend. Startup creates the new automation tables; Alembic installations can use `alembic upgrade head`. `AUTO_GENERATION_ENABLED=false` disables this worker independently of `AUTO_PUBLISH_ENABLED`. The `tzdata` package supplies timezone data on Windows.

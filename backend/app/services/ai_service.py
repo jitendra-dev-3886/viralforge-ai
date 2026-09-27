@@ -17,12 +17,20 @@ from app.services.scene_service import SceneService
 from app.services.downloader_service import DownloaderService
 
 from app.services.user_ai_settings import credentials_for
-from app.core.user_ai_client import generate_user_content
+from app.core.user_ai_client import generate_user_content, ProviderTruncatedResponse
 
 
 
 
 logger = logging.getLogger(__name__)
+
+
+class ContentValidationError(ValueError):
+    """A safe, application-authored content validation message."""
+
+
+class ContentVariationWarning(ContentValidationError):
+    """Editorial similarity merits a retry, but must not discard usable content."""
 
 
 class AIService:
@@ -64,6 +72,10 @@ class AIService:
             code, text, http = "ai_unavailable", "could not be reached. Check the connection or choose another configured provider.", 503
             if provider == "ollama":
                 text = "could not be reached. Start Ollama on the backend machine and check OLLAMA_URL, or select a configured cloud provider in Brief."
+        elif isinstance(error, ProviderTruncatedResponse):
+            code, text, http = "ai_response_truncated", "reached its output token limit even after retrying. Reduce the scene count or duration, or select another configured model.", 502
+        elif isinstance(error, ContentValidationError):
+            code, text, http = "ai_content_validation", f"could not satisfy the content requirements after retrying: {error}.", 502
         elif isinstance(error, ValueError):
             code, text, http = "ai_invalid_response", "returned invalid or incomplete JSON after an automatic retry. Try fewer scenes or another configured provider.", 502
         else:
@@ -121,25 +133,48 @@ class AIService:
 
     @staticmethod
     def _generate_validated_response(provider, request, prompt, credentials=None, brand=None, previous_outputs=None):
+        retry_options = {}
+        retry_feedback = ""
         for attempt in range(2):
             try:
-                text, model = AIService._generate_from_provider(provider, prompt if attempt == 0 else PromptEngine.build_json_retry(request, brand=brand, base_prompt=prompt), **({"credentials": credentials} if credentials is not None else {}))
+                attempt_prompt = prompt if attempt == 0 else PromptEngine.build_json_retry(request, brand=brand, base_prompt=prompt) + retry_feedback
+                text, model = AIService._generate_from_provider(provider, attempt_prompt, **({"credentials": credentials} if credentials is not None else {}), **retry_options)
                 data = AIService._parse_json_response(text)
                 candidates = [data]
                 for value in data.values():
                     if isinstance(value, dict):
+                        candidates.append(value)
                         candidates.extend(item for item in value.values() if isinstance(item, dict))
                 if not any(any(isinstance(item.get(field), str) and item[field].strip() for field in ("title", "script", "caption", "description")) for item in candidates):
                     raise ValueError("Response contains no usable content")
                 if request is not None:
                     content = next((item for item in candidates if isinstance(item.get("scenes"), list)), None)
                     AIService._validate_scene_sequence(content, request)
+                    content.pop("generation_warnings", None)
                     if previous_outputs:
-                        AIService._validate_output_variation(content, previous_outputs)
+                        try:
+                            AIService._validate_output_variation(content, previous_outputs)
+                        except ContentVariationWarning:
+                            if not attempt:
+                                raise
+                            content["generation_warnings"] = [
+                                "Some copy or visual direction matches another selected format after a retry. "
+                                "Review the formats together and adjust any repetition before publishing."
+                            ]
+                            logger.warning("Provider %s returned usable content with repeated cross-format elements", provider)
+                    # Persist the same object we validated, including responses
+                    # wrapped in a single `content` or platform object.
+                    data = content
                 return text, model, data
-            except ValueError:
+            except ValueError as error:
+                if isinstance(error, ContentValidationError):
+                    retry_feedback = "\nFix this specific validation failure: " + str(error) + "."
+                    logger.warning("Provider %s content validation attempt %s: %s", provider, attempt + 1, error)
                 if attempt:
                     raise
+                if (isinstance(error, ProviderTruncatedResponse) and provider == "gemini"
+                        and credentials and credentials["model"].removeprefix("models/").startswith(("gemini-2.5-", "gemini-3"))):
+                    retry_options["max_tokens"] = 16384
                 logger.warning("Provider %s returned unusable content; retrying once", provider)
 
     @staticmethod
@@ -148,35 +183,40 @@ class AIService:
         def tags(value):
             values = value if isinstance(value, list) else re.split(r"[,\s]+", value or "")
             return {normalize(tag) for tag in values if normalize(tag)}
+        # Required distinctions are checked before optional metadata variety,
+        # so a repeated title/tag set cannot hide a duplicated caption or visual.
+        plans = {normalize(scene.get("visual_plan")) for scene in content.get("scenes", []) if scene.get("visual_plan")}
         for previous in previous_outputs:
-            for field in ("title", "caption"):
+            if normalize(content.get("caption")) and normalize(content.get("caption")) == normalize(previous.get("caption")):
+                raise ContentValidationError("Each selected platform and format needs a distinct caption; rewrite its angle and wording")
+            previous_plans = {normalize(plan) for plan in (previous.get("generation_config") or {}).get("visual_plan", []) if plan}
+            if plans & previous_plans:
+                raise ContentValidationError("Each selected platform and format needs a distinct visual plan; replace reused scene compositions with topic-relevant alternatives")
+        for previous in previous_outputs:
+            for field in ("title",):
                 if normalize(content.get(field)) and normalize(content.get(field)) == normalize(previous.get(field)):
-                    raise ValueError(f"Each selected format needs a distinct {field}")
+                    raise ContentVariationWarning(f"Each selected format needs a distinct {field}")
             current_tags = tags(content.get("hashtags"))
             if current_tags and current_tags == tags(previous.get("hashtags")):
-                raise ValueError("Each selected format needs its own relevant hashtag set")
-            plans = {normalize(scene.get("visual_plan")) for scene in content.get("scenes", []) if scene.get("visual_plan")}
-            previous_plans = {normalize(plan) for plan in (previous.get("generation_config") or {}).get("visual_plan", []) if plan}
-            if plans and previous_plans and plans == previous_plans:
-                raise ValueError("Each selected format needs a distinct visual plan")
+                raise ContentVariationWarning("Each selected format needs its own relevant hashtag set")
 
     @staticmethod
     def _validate_scene_sequence(content, request):
         expected, media_type, _, is_carousel, _ = PromptEngine.scene_settings(request)
         scenes = content.get("scenes") if content else None
         if not isinstance(scenes, list) or len(scenes) != expected:
-            raise ValueError(f"Expected a complete sequence of {expected} scenes")
+            raise ContentValidationError(f"Expected a complete sequence of {expected} scenes")
         seen = set()
         for index, scene in enumerate(scenes, 1):
             if not isinstance(scene, dict) or not isinstance(scene.get("text"), str) or not scene["text"].strip():
-                raise ValueError("Every scene needs meaningful text")
+                raise ContentValidationError("Every scene needs meaningful text")
             key = re.sub(r"\s+", " ", scene["text"]).strip().casefold()
             if key in seen:
-                raise ValueError("Repeated scene text does not form a complete sequence")
+                raise ContentValidationError("Repeated scene text does not form a complete sequence")
             seen.add(key)
             if media_type == "video":
                 if not isinstance(scene.get("voice_text"), str) or not scene["voice_text"].strip():
-                    raise ValueError("Every video scene needs its own narration")
+                    raise ContentValidationError("Every video scene needs its own narration")
             else:
                 scene["voice_text"] = scene["text"]
             scene["scene"] = index
@@ -189,16 +229,16 @@ class AIService:
             for field in ("text", "voice_text"):
                 copy = " ".join(scene[field] for scene in scenes)
                 if not any("\u0900" <= char <= "\u097f" and char.isalpha() for char in copy):
-                    raise ValueError("Hindi output must use Devanagari for scene copy and narration")
+                    raise ContentValidationError("Hindi output must use Devanagari for scene copy and narration")
         if is_carousel:
             content["story"] = " ".join(scene["text"].strip() for scene in scenes)
         if "youtube" in {platform.lower() for platform in request.platforms}:
             caption = content.get("caption")
             description = content.get("description")
             if not isinstance(caption, str) or not caption.strip() or len(re.sub(r"\s+", " ", caption.strip())) > 100:
-                raise ValueError("YouTube needs a caption title of 1-100 characters")
+                raise ContentValidationError("YouTube needs a caption title of 1-100 characters")
             if not isinstance(description, str) or not description.strip():
-                raise ValueError("YouTube needs a separate description")
+                raise ContentValidationError("YouTube needs a separate description")
 
     @staticmethod
     def _requested_outputs(request: GenerateRequest) -> list[dict[str, str]]:
@@ -245,10 +285,10 @@ class AIService:
         return "video" if fallback == "video" else "image"
 
     @staticmethod
-    def _generate_from_provider(provider: str, prompt: str, credentials=None) -> tuple[str, str]:
+    def _generate_from_provider(provider: str, prompt: str, credentials=None, *, max_tokens=None) -> tuple[str, str]:
         if credentials is None:
             raise ValueError("User API credentials are required")
-        return generate_user_content(provider, prompt, credentials)
+        return generate_user_content(provider, prompt, credentials, **({"max_tokens": max_tokens} if max_tokens is not None else {}))
 
     @staticmethod
     def generate(
@@ -634,6 +674,7 @@ class AIService:
                 status="generated",
 
                 generation_config={
+                    "generation_warnings": (output_data or ai_data).get("generation_warnings", []),
                     **({"content_goal": request.content_goal} if request.content_goal else {}),
                     "package": request.package,
                     "provider": request.provider,
