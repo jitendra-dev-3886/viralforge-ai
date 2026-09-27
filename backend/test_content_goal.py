@@ -147,9 +147,13 @@ class ContentGoalTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         generate.assert_not_called()
 
-    def test_default_prompt_is_unchanged_by_brand_or_null_goal(self):
+    def test_default_prompt_has_brand_value_even_without_goal(self):
         prompt = PromptEngine.build(self.request())
-        self.assertEqual(prompt, PromptEngine.build(self.request(content_goal=None), brand=self.brand()))
+        self.assertEqual(prompt, PromptEngine.build(self.request(content_goal=None)))
+        branded = PromptEngine.build(self.request(content_goal=None), brand=self.brand())
+        self.assertIn("FinLogicMoney", branded)
+        self.assertIn("Recurring audience benefit:", branded)
+        self.assertIn("CONTENT VALUE CONTRACT", prompt)
         self.assertNotIn("Content goal:", prompt)
         self.assertNotIn("Brand description / audience context:", prompt)
 

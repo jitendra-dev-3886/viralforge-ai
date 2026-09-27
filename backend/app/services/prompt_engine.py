@@ -1,7 +1,9 @@
 import json
 import re
 
-from app.config.prompt_config import SYSTEM_PROMPT, VISUAL_NICHE_BOUNDARIES, tech_education_direction
+from app.config.prompt_config import (SYSTEM_PROMPT, VISUAL_NICHE_BOUNDARIES,
+                                    tech_education_direction, brand_content_direction,
+                                    ENGAGEMENT_QUALITY_RULES)
 from app.core.visual_style import get_style
 
 
@@ -53,6 +55,7 @@ class PromptEngine:
         visual = get_style(data.visual_style)
         visual_direction = f'{visual["name"]}: {visual["description"]}' if visual else "Default"
         education_direction = tech_education_direction(data.niche, getattr(brand, "name", None), getattr(brand, "niche", None))
+        brand_direction = brand_content_direction(data.niche, brand)
         normalize = lambda value: re.sub(r"[^a-z0-9]", "", str(value or "").lower())
         boundary = None
         for identity in (getattr(brand, "name", None), data.niche, getattr(brand, "niche", None)):
@@ -203,6 +206,8 @@ Use keyword as the canonical stock search phrase: name the distinguishing subjec
 Set every scene media_type to "{media_type}". Do not create any other platform or content format. For a carousel, set story to all scene text values joined in order, preserving the ending; otherwise story can be empty.
 {quote_rules}
 {education_direction}
+{brand_direction}
+{ENGAGEMENT_QUALITY_RULES}
 """.strip()
 
     @staticmethod
@@ -215,4 +220,6 @@ Set every scene media_type to "{media_type}". Do not create any other platform o
             "Use short sentences and at most 3 words per search phrase. Preserve every essential story beat and the ending. "
             "Keep caption concise and preserve the platform-specific title and description rules above. Keep script aligned with the scene narration and story aligned with the slides, "
             "and use at most 3 hashtags and 3 SEO keywords. Finish the entire JSON object."
+            " Preserve the strong hook, concrete payoff, natural save/share value and recurring brand benefit. "
+            "Repeat the internal quality gate and correct every failed check before returning the existing JSON shape."
         )

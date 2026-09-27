@@ -9,6 +9,8 @@ from app.models.media import Media
 
 from app.core.pexels_client import PexelsClient
 from app.core.pixabay_client import PixabayClient
+from app.core.coverr_client import CoverrClient
+from app.core.openverse_client import OpenverseClient
 from app.config.prompt_config import VISUAL_NICHE_BOUNDARIES
 
 
@@ -268,8 +270,13 @@ class DownloaderService:
         used_in_output = (db.query(Media.file_url).join(Scene, Scene.media_id == Media.id)
                           .filter(Scene.content_id == scene.content_id, Scene.id != scene.id).all())
         excluded_urls.extend(url for (url,) in used_in_output if url)
+        clients = [PexelsClient, PixabayClient]
+        if media_type == "video" and CoverrClient.API_KEY:
+            clients.append(CoverrClient)
+        if media_type == "image" and OpenverseClient.ENABLED:
+            clients.append(OpenverseClient)
         for match_level, query in search_queries:
-            for client in (PexelsClient, PixabayClient):
+            for client in clients:
                 if client in failed_providers:
                     continue
                 try:
@@ -280,12 +287,16 @@ class DownloaderService:
                     )
                 except Exception as exc:
                     status = getattr(getattr(exc, "response", None), "status_code", None)
-                    reason = ("check API credentials" if status in (401, 403) or not client.API_KEY
+                    credentials_failed = getattr(exc, "credential_error", False) or status in (401, 403) or not client.API_KEY
+                    reason = (f"API credentials rejected or missing; update {client.__name__.replace('Client', '').upper()}_API_KEY in the backend environment and restart the backend" if credentials_failed
                               else "rate limit reached; retry later" if status == 429
+                              else "search request rejected (HTTP 400); check search parameters" if status == 400
                               else "request failed; retry later")
-                    provider_errors.append(f"{client.__name__.replace('Client', '')}: {reason}")
+                    provider_error = f"{client.__name__.replace('Client', '')}: {reason}"
+                    if provider_error not in provider_errors:
+                        provider_errors.append(provider_error)
                     # Retrying a broken/rate-limited provider for every query only delays fallback.
-                    if status != 400:
+                    if status != 400 or credentials_failed:
                         failed_providers.add(client)
                     continue
                 if media:

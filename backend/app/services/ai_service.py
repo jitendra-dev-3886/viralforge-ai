@@ -150,6 +150,7 @@ class AIService:
                 if request is not None:
                     content = next((item for item in candidates if isinstance(item.get("scenes"), list)), None)
                     AIService._validate_scene_sequence(content, request)
+                    AIService._validate_content_quality(content)
                     content.pop("generation_warnings", None)
                     if previous_outputs:
                         try:
@@ -176,6 +177,30 @@ class AIService:
                         and credentials and credentials["model"].removeprefix("models/").startswith(("gemini-2.5-", "gemini-3"))):
                     retry_options["max_tokens"] = 16384
                 logger.warning("Provider %s returned unusable content; retrying once", provider)
+
+    @staticmethod
+    def _validate_content_quality(content):
+        """Check observable defects; semantic value is reviewed by the prompt's quality gate."""
+        normalize = lambda value: re.sub(r"[^\w\s]", "", str(value or "").casefold()).strip()
+        normalize_line = lambda value: re.sub(r"\s+", " ", normalize(value))
+        scenes = content.get("scenes", [])
+        first = scenes[0] if scenes else {}
+        opening = content.get("hook") or first.get("text")
+        if not isinstance(opening, str) or not opening.strip():
+            raise ContentValidationError("Give the opening a specific hook with a concrete viewer benefit")
+        generic = {
+            "save money every month", "stay positive", "ai is changing the world",
+            "believe in yourself", "never give up", "follow your dreams",
+            "आज हम बात करेंगे", "सकारात्मक रहें", "हर महीने पैसे बचाएं",
+            "aaj hum baat karenge", "stay motivated",
+        }
+        generic = {normalize_line(value) for value in generic}
+        openings = (opening, first.get("text"), first.get("voice_text"))
+        if any(normalize_line(value) in generic for value in openings if value):
+            raise ContentValidationError("Replace the generic opening with a specific situation, mistake or benefit and deliver its payoff")
+        cta_only = {"like share and follow", "like share subscribe", "follow for more", "share this", "save this post"}
+        if scenes and all(normalize_line(scene.get("text")) in generic | cta_only for scene in scenes):
+            raise ContentValidationError("Replace filler with a concrete example or useful takeaway before asking for engagement")
 
     @staticmethod
     def _validate_output_variation(content, previous_outputs):
@@ -378,6 +403,9 @@ class AIService:
                 .order_by(Content.id.desc()).limit(5).all()
             )
             recent_visuals = [{
+                "hook": previous.hook,
+                "caption": previous.caption,
+                "cta": previous.cta,
                 "topic": (previous.generation_config or {}).get("topic", previous.title),
                 "story": previous.script[:1800],
                 "visuals": (previous.generation_config or {}).get("visual_plan") or [
@@ -394,6 +422,7 @@ class AIService:
                     + json.dumps([{
                         "platform": item.get("platform"), "format": item.get("content_type"),
                         "title": item.get("title"), "caption": item.get("caption"), "hashtags": item.get("hashtags"),
+                        "hook": item.get("hook"), "cta": item.get("cta"),
                         "visuals": (item.get("generation_config") or {}).get("visual_plan", []),
                         "scene_keywords": [scene.get("keyword") for scene in item.get("scenes", [])],
                     } for item in previous_outputs], ensure_ascii=False)

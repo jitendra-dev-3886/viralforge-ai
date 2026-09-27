@@ -4,6 +4,7 @@ import { downloadMedia } from "../../api/media";
 import ContentFinisher from "./ContentFinisher";
 import GeneratedPublishing from "./GeneratedPublishing";
 import SceneMediaUpload from "../../components/SceneMediaUpload";
+import StockSourceCredit from "../../components/StockSourceCredit";
 import { assetUrl } from "../../api/axios";
 import { Link } from "react-router-dom";
 import { getContent } from "../../api/content";
@@ -154,6 +155,7 @@ export default function PreviewPanel({ data, username = "", brandName = "", logo
                     {scene.text && <p><strong>Text:</strong> {scene.text}</p>}
                     {scene.keyword && <p><strong>Visual:</strong> {scene.keyword}</p>}
                     {scene.media_provider && <p><strong>Source:</strong> {scene.media_provider}</p>}
+                    <StockSourceCredit provider={scene.media_provider} />
                     {scene.media_url && ["niche", "project"].includes(scene.media_match_level) && <p className="text-xs text-amber-700">{scene.media_match_level === "niche" ? "Niche-related" : "Project-related"} visual used because no closer match was found.</p>}
                 </div>
 

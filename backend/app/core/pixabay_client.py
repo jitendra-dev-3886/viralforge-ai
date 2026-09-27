@@ -14,6 +14,27 @@ class PixabayClient:
     VIDEO_URL = "https://pixabay.com/api/videos/"
     API_KEY = os.getenv("PIXABAY_API_KEY")
 
+    @staticmethod
+    def _check_response(response):
+        # Pixabay may report invalid credentials as HTTP 400. Never expose
+        # its response body or URL, which may contain the API key.
+        if response.status_code == 400:
+            message = response.text.lower()
+            if "key" in message and any(term in message for term in ("invalid", "not valid", "missing")):
+                error = requests.HTTPError("Pixabay rejected API credentials", response=response)
+                error.credential_error = True
+                raise error
+        response.raise_for_status()
+
+    @staticmethod
+    def _query(query):
+        # Pixabay limits q to 100 characters; preserve whole words where possible.
+        query = " ".join(query.split())
+        if len(query) > 100:
+            prefix = query[:100]
+            query = prefix.rsplit(" ", 1)[0] if " " in prefix and query[100] != " " else prefix
+        return query
+
     @classmethod
     def headers(cls):
         if not cls.API_KEY:
@@ -40,7 +61,7 @@ class PixabayClient:
             headers=cls.headers(),
             params={
                 "key": cls.API_KEY,
-                "q": query,
+                "q": cls._query(query),
                 "image_type": "photo",
                 "safesearch": "true",
                 "per_page": per_page,
@@ -49,7 +70,7 @@ class PixabayClient:
             },
             timeout=30,
         )
-        response.raise_for_status()
+        cls._check_response(response)
         return response.json()
 
     @classmethod
@@ -59,13 +80,13 @@ class PixabayClient:
             headers=cls.headers(),
             params={
                 "key": cls.API_KEY,
-                "q": query,
+                "q": cls._query(query),
                 "per_page": per_page,
                 "page": page,
             },
             timeout=30,
         )
-        response.raise_for_status()
+        cls._check_response(response)
         return response.json()
 
     @classmethod

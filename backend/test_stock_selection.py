@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import requests
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,38 @@ from app.services.project_render_service import ProjectRenderService
 
 
 class StockSelectionTests(unittest.TestCase):
+    def test_pixabay_invalid_key_stops_repeated_searches(self):
+        response = requests.Response()
+        response.status_code = 400
+        response._content = b'[ERROR 400] API key is not valid: private-key'
+        scene = SimpleNamespace(id=1, user_id=1, project_id=1, content_id=1, scene_number=1,
+                                media_type="image", media_id=None, image_prompt="solar panel installation",
+                                keyword="solar panel installation", video_prompt="",
+                                content=SimpleNamespace(platform="Instagram", content_type="Post"))
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = scene
+        with patch("app.services.downloader_service.os.makedirs"), \
+             patch.object(PixabayClient, "API_KEY", "private-key"), \
+             patch("app.core.pixabay_client.requests.get", return_value=response) as get, \
+             patch.object(PexelsClient, "search_and_download", return_value=None) as pexels:
+            with self.assertRaises(HTTPException) as caught:
+                DownloaderService.download(db, 1, 1)
+        self.assertEqual(get.call_count, 1)
+        self.assertGreater(pexels.call_count, 1)
+        self.assertEqual(caught.exception.detail.count("Pixabay:"), 1)
+        self.assertIn("PIXABAY_API_KEY", caught.exception.detail)
+        self.assertNotIn("private-key", caught.exception.detail)
+
+    def test_pixabay_limits_image_and_video_queries(self):
+        for method in (PixabayClient.search_images, PixabayClient.search_videos):
+            response = MagicMock(status_code=200)
+            response.json.return_value = {"hits": []}
+            with patch.object(PixabayClient, "API_KEY", "test-key"), patch("app.core.pixabay_client.requests.get", return_value=response) as get:
+                method("computer programming " * 20)
+            query = get.call_args.kwargs["params"]["q"]
+            self.assertLessEqual(len(query), 100)
+            self.assertTrue(query.endswith(("computer", "programming")))
+
     def test_orientation_fallback_preserves_used_asset_exclusions(self):
         used = {"alt": "programming", "width": 1080, "height": 1920, "src": {"large2x": "used.jpg"}}
         fresh = {"alt": "programming", "width": 1920, "height": 1080, "src": {"large2x": "fresh.jpg"}}

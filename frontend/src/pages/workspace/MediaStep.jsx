@@ -4,6 +4,7 @@ import { updateScene } from "../../api/scene";
 import { assertSuccess } from "./workflow";
 import { findSceneMedia } from "./workspaceApi";
 import SceneMediaUpload from "../../components/SceneMediaUpload";
+import StockSourceCredit from "../../components/StockSourceCredit";
 
 export default function MediaStep({ content, media, busy, run, refresh, onUploadBusyChange }) {
     return <div className="space-y-5">
@@ -18,6 +19,7 @@ function SceneMedia({ scene, index, media, busy, run, refresh, onUploadBusyChang
     return <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex h-56 items-center justify-center bg-slate-100">{scene.media_url ? scene.media_type === "video" ? <video src={assetUrl(scene.media_url)} controls preload="metadata" className="h-full w-full object-contain" /> : <img src={assetUrl(scene.media_url)} alt={`Scene ${index + 1}`} className="h-full w-full object-contain" /> : <p className="text-sm text-slate-500">No media yet. Search below to add it.</p>}</div>
         <fieldset disabled={busy} className="space-y-3 p-4">
+            <StockSourceCredit provider={scene.media_provider} />
             <SceneMediaUpload sceneId={scene.id} disabled={busy} onBusyChange={onUploadBusyChange} onUploaded={refresh} />
             <p className="text-sm font-semibold">Scene {index + 1} · {scene.media_type}</p><p className="text-sm text-slate-600">{scene.text}</p>
             <label className="block text-xs font-medium">Stock search phrase<input value={keyword} onChange={(e) => setKeyword(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm" /></label>
