@@ -28,21 +28,11 @@ import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 const menus = [
-    { name: "Plans & usage", icon: BadgeCheck, path: "/billing" },
-
     {
         name: "Dashboard",
         icon: LayoutDashboard,
         path: "/dashboard",
     },
-
-    {
-        name: "AI Studio",
-        icon: Sparkles,
-        path: "/ai-studio",
-    },
-    { name: "Creation Workspace", icon: Workflow, path: "/creation-workspace" },
-    { name: "Auto Mode", icon: CalendarDays, path: "/auto-mode" },
 
     {
         name: "Brands",
@@ -56,11 +46,21 @@ const menus = [
         path: "/projects",
     },
 
+    { name: "Creation Workspace", icon: Workflow, path: "/creation-workspace" },
+
     {
-        name: "Content",
-        icon: FileText,
-        path: "/generate",
+        name: "AI Studio",
+        icon: Sparkles,
+        path: "/ai-studio",
     },
+
+    { name: "Auto Mode", icon: CalendarDays, path: "/auto-mode" },
+
+    // {
+    //     name: "Content",
+    //     icon: FileText,
+    //     path: "/generate",
+    // },
 
     {
         name: "Media",
@@ -80,23 +80,23 @@ const menus = [
         path: "/voice",
     },
 
-    {
-        name: "Downloader",
-        icon: DownloadCloud,
-        path: "/downloader",
-    },
+    // {
+    //     name: "Downloader",
+    //     icon: DownloadCloud,
+    //     path: "/downloader",
+    // },
 
-    {
-        name: "Scenes",
-        icon: Layers,
-        path: "/scenes",
-    },
+    // {
+    //     name: "Scenes",
+    //     icon: Layers,
+    //     path: "/scenes",
+    // },
 
-    {
-        name: "Subtitle",
-        icon: Type,
-        path: "/subtitle",
-    },
+    // {
+    //     name: "Subtitle",
+    //     icon: Type,
+    //     path: "/subtitle",
+    // },
 
     {
         name: "Scheduler",
@@ -116,17 +116,20 @@ const menus = [
         path: "/analytics",
     },
 
-    {
-        name: "Export",
-        icon: FileOutput,
-        path: "/export",
-    },
+    // {
+    //     name: "Export",
+    //     icon: FileOutput,
+    //     path: "/export",
+    // },
 
     {
         name: "Settings",
         icon: Settings,
         path: "/settings",
     },
+
+    { name: "Plans & usage", icon: BadgeCheck, path: "/billing" },
+
     { name: "Super Admin", icon: ShieldCheck, path: "/admin", adminOnly: true },
 
 ];
