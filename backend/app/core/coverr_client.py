@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 import requests
 from dotenv import load_dotenv
 
+from app.core.visual_download import limited_chunks
 from app.core.media_selection import best_for_query
 
 load_dotenv()
@@ -50,7 +51,7 @@ class CoverrClient:
                 if "video/mp4" not in download.headers.get("Content-Type", "").lower():
                     raise ValueError("Coverr returned an unexpected media type")
                 with open(partial, "wb") as file:
-                    for chunk in download.iter_content(65536):
+                    for chunk in limited_chunks(download):
                         if chunk:
                             file.write(chunk)
             if not os.path.getsize(partial):

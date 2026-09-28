@@ -11,7 +11,7 @@ export default function ScriptStep({ content, onChange, busy }) {
             <p className="mb-3 text-sm font-semibold">Scene {index + 1}</p>
             <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm">Visible overlay text<textarea className={field} rows={3} value={scene.text || ""} onChange={(e) => changeScene(scene.id, "text", e.target.value)} /></label>
-                <label className="text-sm">Spoken narration<textarea className={field} rows={3} value={scene.voice_text ?? scene.text ?? ""} onChange={(e) => changeScene(scene.id, "voice_text", e.target.value)} /></label>
+                <label className="text-sm">Spoken narration (reads overlay exactly)<textarea className={field} rows={3} value={scene.text ?? ""} readOnly /></label>
                 <label className="text-sm">Duration in seconds<input type="number" min="1" max="180" className={field} value={scene.duration ?? 5} onChange={(e) => changeScene(scene.id, "duration", e.target.value)} /></label>
                 <label className="text-sm">Transition<select className={field} value={scene.transition || "fade"} onChange={(e) => changeScene(scene.id, "transition", e.target.value)}><option value="fade">Fade</option><option value="none">Cut</option></select></label>
             </div>

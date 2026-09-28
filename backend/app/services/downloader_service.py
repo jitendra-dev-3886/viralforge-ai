@@ -1,3 +1,4 @@
+from app.core.visual_download import VisualSizeLimitError
 import os
 import re
 
@@ -285,6 +286,11 @@ class DownloaderService:
                         orientation=orientation if query == search_keyword else None,
                         **({"excluded_urls": excluded_urls} if excluded_urls else {}),
                     )
+                except VisualSizeLimitError:
+                    message = "Images and video clips must be 10 MB or smaller. Try another search."
+                    if message not in provider_errors:
+                        provider_errors.append(message)
+                    continue
                 except Exception as exc:
                     status = getattr(getattr(exc, "response", None), "status_code", None)
                     credentials_failed = getattr(exc, "credential_error", False) or status in (401, 403) or not client.API_KEY

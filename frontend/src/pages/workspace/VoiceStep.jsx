@@ -32,7 +32,7 @@ export default function VoiceStep({
   const [voice, setVoice] = useState(VOICES[language][0][0]);
   const records = latestVoices(voices, content.id);
   const generate = async (scene) => {
-    const text = scene.voice_text ?? scene.text;
+    const text = scene.text;
     if (!text?.trim())
       throw new Error("Add narration text in the Script step first.");
     const actualLanguage = /[\u0900-\u097f]/.test(text) ? "Hindi" : language;
@@ -66,6 +66,8 @@ export default function VoiceStep({
         <p className="mt-1 text-sm text-slate-500">
           Optional for silent videos and image exports. Hindi text automatically
           uses a Hindi voice.
+          {" "}In video exports, each voiced scene follows its recording’s length
+          with a short pause before the next scene.
         </p>
       </div>
       <fieldset disabled={busy} className="flex flex-wrap gap-3">
@@ -129,7 +131,7 @@ export default function VoiceStep({
         const record = records[scene.id];
         const stale =
           record &&
-          record.text?.trim() !== (scene.voice_text ?? scene.text ?? "").trim();
+          record.text?.trim() !== (scene.text ?? "").trim();
         return (
           <article
             key={scene.id}
@@ -151,7 +153,7 @@ export default function VoiceStep({
               </button>
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              {scene.voice_text ?? scene.text}
+              {scene.text}
             </p>
             {stale && (
               <p className="mt-2 text-sm text-amber-700">

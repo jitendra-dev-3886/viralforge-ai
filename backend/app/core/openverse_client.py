@@ -7,6 +7,7 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
+from app.core.visual_download import MAX_VISUAL_BYTES, VisualSizeLimitError, limited_chunks
 from app.core.media_selection import best_for_query
 
 load_dotenv()
@@ -50,10 +51,8 @@ class OpenverseClient:
             if download.status_code != 200 or not download.headers.get("Content-Type", "").startswith("image/"):
                 raise ValueError("Openverse source did not return an image")
             buffer = io.BytesIO()
-            for chunk in download.iter_content(65536):
+            for chunk in limited_chunks(download):
                 buffer.write(chunk)
-                if buffer.tell() > 25 * 1024 * 1024:
-                    raise ValueError("Openverse image exceeds download size limit")
         buffer.seek(0)
         partial = save_path + ".part"
         os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
@@ -63,6 +62,8 @@ class OpenverseClient:
                 photo.thumbnail((4096, 4096))
                 width, height = photo.size
                 photo.save(partial, format="JPEG", quality=92)
+            if os.path.getsize(partial) > MAX_VISUAL_BYTES:
+                raise VisualSizeLimitError()
             os.replace(partial, save_path)
         finally:
             if os.path.exists(partial):

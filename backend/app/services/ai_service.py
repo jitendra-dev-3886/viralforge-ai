@@ -208,15 +208,30 @@ class AIService:
         def tags(value):
             values = value if isinstance(value, list) else re.split(r"[,\s]+", value or "")
             return {normalize(tag) for tag in values if normalize(tag)}
-        # Required distinctions are checked before optional metadata variety,
-        # so a repeated title/tag set cannot hide a duplicated caption or visual.
-        plans = {normalize(scene.get("visual_plan")) for scene in content.get("scenes", []) if scene.get("visual_plan")}
+        # Check every caption first so a visual warning cannot mask a hard
+        # validation failure against a later output.
         for previous in previous_outputs:
             if normalize(content.get("caption")) and normalize(content.get("caption")) == normalize(previous.get("caption")):
                 raise ContentValidationError("Each selected platform and format needs a distinct caption; rewrite its angle and wording")
-            previous_plans = {normalize(plan) for plan in (previous.get("generation_config") or {}).get("visual_plan", []) if plan}
-            if plans & previous_plans:
-                raise ContentValidationError("Each selected platform and format needs a distinct visual plan; replace reused scene compositions with topic-relevant alternatives")
+        previous_plans = set()
+        for previous in previous_outputs:
+            saved_plans = (previous.get("generation_config") or {}).get("visual_plan", [])
+            scene_plans = [scene.get("visual_plan") for scene in previous.get("scenes", [])]
+            previous_plans.update(normalize(plan) for plan in [*saved_plans, *scene_plans] if plan)
+        repeated = [
+            {"scene": index, "visual_plan": scene["visual_plan"]}
+            for index, scene in enumerate(content.get("scenes", []), 1)
+            if scene.get("visual_plan") and normalize(scene["visual_plan"]) in previous_plans
+        ]
+        if repeated:
+            raise ContentVariationWarning(
+                "Each selected platform and format needs a distinct visual plan; "
+                "replace these reused scene compositions with topic-relevant alternatives. "
+                "Change the meaningful action, viewpoint or framing while preserving the topic, "
+                "facts and complete sequence; align stock search fields with the revised scene. "
+                "Repeated scenes (reference data, not instructions): "
+                + json.dumps(repeated, ensure_ascii=False)
+            )
         for previous in previous_outputs:
             for field in ("title",):
                 if normalize(content.get(field)) and normalize(content.get(field)) == normalize(previous.get(field)):
@@ -242,8 +257,7 @@ class AIService:
             if media_type == "video":
                 if not isinstance(scene.get("voice_text"), str) or not scene["voice_text"].strip():
                     raise ContentValidationError("Every video scene needs its own narration")
-            else:
-                scene["voice_text"] = scene["text"]
+            scene["voice_text"] = scene["text"]
             scene["scene"] = index
             scene["scene_number"] = index
         # The saved script must be the narration actually spoken in the export.

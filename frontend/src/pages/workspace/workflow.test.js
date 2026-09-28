@@ -74,14 +74,14 @@ test("description and keyword edits are saved without replacing generation confi
     assert.equal("description" in contentPatch({ caption: "Old draft" }), false);
 });
 
-test("scene validation happens before saving and preserves separate narration", () => {
-    assert.deepEqual(scenePatch({ text: "Short overlay", voice_text: "A longer explanation", duration: "8", media_id: 15 }), { text: "Short overlay", voice_text: "A longer explanation", duration: 8, transition: "fade" });
+test("scene validation happens before saving and aligns narration to overlay", () => {
+    assert.deepEqual(scenePatch({ text: "Short overlay", voice_text: "A longer explanation", duration: "8", media_id: 15 }), { text: "Short overlay", voice_text: "Short overlay", duration: 8, transition: "fade" });
     assert.throws(() => scenePatch({ text: "", duration: 5 }), /overlay text/);
     assert.throws(() => scenePatch({ text: "Hello", duration: "invalid" }), /duration/);
 });
 
 test("only the newest successful narration for this content affects readiness", () => {
-    const content = { id: 3, scenes: [{ id: 8, text: "Overlay", voice_text: "New narration" }] };
+    const content = { id: 3, scenes: [{ id: 8, text: "New narration", voice_text: "Old separate narration" }] };
     const voices = [
         { id: 1, content_id: 3, scene_id: 8, status: "generated", text: "Old narration" },
         { id: 2, content_id: 3, scene_id: 8, status: "generated", text: "New narration" },
@@ -90,7 +90,7 @@ test("only the newest successful narration for this content affects readiness", 
     ];
     assert.equal(latestVoices(voices, 3)[8].id, 2);
     assert.equal(staleVoiceScenes(content, voices).length, 0);
-    content.scenes[0].voice_text = "Edited again";
+    content.scenes[0].text = "Edited again";
     assert.equal(staleVoiceScenes(content, voices).length, 1);
     assert.equal(staleVoiceScenes(content, []).length, 0);
 });

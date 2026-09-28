@@ -63,7 +63,7 @@ export function scenePatch(scene) {
     const duration = Number(scene.duration);
     if (!scene.text?.trim()) throw new Error("Every scene needs overlay text.");
     if (!Number.isFinite(duration) || duration < 1 || duration > 180) throw new Error("Scene duration must be between 1 and 180 seconds.");
-    return { text: scene.text, voice_text: scene.voice_text ?? scene.text, duration, transition: scene.transition || "fade" };
+    return { text: scene.text, voice_text: scene.text, duration, transition: scene.transition || "fade" };
 }
 export function latestVoices(voices, contentId) {
     const result = {};
@@ -74,7 +74,7 @@ export function latestVoices(voices, contentId) {
 }
 export function staleVoiceScenes(content, voices) {
     const latest = latestVoices(voices, content?.id);
-    return (content?.scenes || []).filter((scene) => latest[scene.id] && latest[scene.id].text?.trim() !== (scene.voice_text ?? scene.text ?? "").trim());
+    return (content?.scenes || []).filter((scene) => latest[scene.id] && latest[scene.id].text?.trim() !== (scene.text ?? "").trim());
 }
 export function restoreDraft(server, draft) {
     if (!draft || Number(draft.id) !== Number(server.id)) return server;

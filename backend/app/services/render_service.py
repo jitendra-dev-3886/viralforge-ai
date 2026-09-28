@@ -121,6 +121,8 @@ class RenderService:
             raise HTTPException(status_code=404, detail="The saved scene media file is missing from storage.")
         if as_image or (scene.content.generation_config or {}).get("audio", {}).get("voice_enabled") is False:
             voice = None
+        if voice and (voice.text or "").strip() != (scene.text or "").strip():
+            raise HTTPException(status_code=422, detail=f"Scene {scene.scene_number}'s voice does not match its overlay text. Regenerate its voice before exporting.")
         voice_path = _stored_path(voice.audio_path) if voice else None
         if voice and (not voice_path or not voice_path.is_file()):
             raise HTTPException(status_code=422, detail=f"Scene {scene.scene_number}'s voice file is missing. Generate its voice again before merging.")

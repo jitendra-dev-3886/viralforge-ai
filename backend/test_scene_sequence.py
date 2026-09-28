@@ -75,6 +75,7 @@ class SceneSequenceTests(unittest.TestCase):
     def test_video_script_matches_scene_narration(self):
         content = self.content()
         AIService._validate_scene_sequence(content, self.request("Reel"))
+        self.assertEqual([s["voice_text"] for s in content["scenes"]], [s["text"] for s in content["scenes"]])
         self.assertEqual(content["script"], " ".join(s["voice_text"] for s in content["scenes"]))
         self.assertNotIn("Unrelated", content["script"])
 
@@ -132,18 +133,21 @@ class SceneSequenceTests(unittest.TestCase):
         self.assertEqual(content["script"], content["scenes"][0]["text"])
         self.assertIn("exactly one original two-line", PromptEngine.build(request))
 
-    def test_repeated_visual_plan_is_rejected_after_retry(self):
+    def test_repeated_visual_plan_returns_review_warning_after_retry(self):
         content = self.content()
         for index, scene in enumerate(content["scenes"]):
             scene["visual_plan"] = f"Tomato growing step {index}"
         previous = [{"generation_config": {"visual_plan": [scene["visual_plan"] for scene in content["scenes"]]}}]
         with patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(content), "model")) as generate:
-            with self.assertRaisesRegex(ContentValidationError, "distinct visual plan"):
-                AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
+            _, _, result = AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
         self.assertEqual(generate.call_count, 2)
         self.assertIn("distinct visual plan", generate.call_args.args[1])
+        self.assertIn('"scene": 1', generate.call_args.args[1])
+        self.assertIn("Tomato growing step 0", generate.call_args.args[1])
+        self.assertTrue(result["generation_warnings"])
+        self.assertEqual(len(result["scenes"]), 5)
 
-    def test_partial_visual_reuse_and_caption_reuse_cannot_be_softened(self):
+    def test_partial_visual_reuse_warns_but_caption_reuse_fails(self):
         for field in ("caption", "visual"):
             content = self.content()
             content["caption"] = "Learn to grow tomatoes"
@@ -154,9 +158,37 @@ class SceneSequenceTests(unittest.TestCase):
             else:
                 previous["generation_config"] = {"visual_plan": ["Closeup of planting tomato seeds", "Harvesting tomatoes"]}
             with self.subTest(field=field), patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(content), "model")) as generate:
-                with self.assertRaisesRegex(ContentValidationError, "distinct caption|distinct visual plan"):
-                    AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=[previous])
+                if field == "caption":
+                    with self.assertRaisesRegex(ContentValidationError, "distinct caption"):
+                        AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=[previous])
+                else:
+                    _, _, result = AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=[previous])
+                    self.assertTrue(result["generation_warnings"])
                 self.assertEqual(generate.call_count, 2)
+
+    def test_repaired_visuals_return_without_warning(self):
+        content = self.content()
+        content["scenes"][0]["visual_plan"] = "Closeup of planting tomato seeds"
+        repaired = self.content()
+        repaired["scenes"][0]["visual_plan"] = "Overhead view of spacing tomato seeds in a tray"
+        previous = [{"scenes": content["scenes"]}]
+        with patch.object(AIService, "_generate_from_provider", side_effect=[
+            (json.dumps(content), "model"), (json.dumps(repaired), "model")
+        ]) as generate:
+            _, _, result = AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
+        self.assertEqual(generate.call_count, 2)
+        self.assertNotIn("generation_warnings", result)
+        self.assertEqual(result["scenes"][0]["visual_plan"], repaired["scenes"][0]["visual_plan"])
+
+    def test_visual_warning_cannot_mask_caption_reuse_in_later_output(self):
+        content = self.content()
+        content["caption"] = "Grow your first tomatoes"
+        content["scenes"][0]["visual_plan"] = "Planting tomato seeds"
+        previous = [{"generation_config": {"visual_plan": ["Planting tomato seeds"]}},
+                    {"caption": content["caption"]}]
+        with patch.object(AIService, "_generate_from_provider", return_value=(json.dumps(content), "model")):
+            with self.assertRaisesRegex(ContentValidationError, "distinct caption"):
+                AIService._generate_validated_response("gemini", self.request(), "prompt", previous_outputs=previous)
 
     def test_similarity_does_not_bypass_incomplete_scenes_on_retry(self):
         content = self.content()

@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import re
+import math
 from pathlib import Path
 
 from app.core.text_overlay import render_caption, render_logo
@@ -86,7 +87,10 @@ class FFmpegClient:
             command += ["-stream_loop", "-1", "-i", video_path]
         if audio_path:
             command += ["-i", audio_path]
-            duration = max(float(duration), FFmpegClient.audio_duration(audio_path))
+            # Narration is the scene clock. A planned duration must not leave
+            # a long silent hold after speech, or cut off a longer recording.
+            # End on a video frame boundary with a brief natural pause.
+            duration = max(1, math.ceil((FFmpegClient.audio_duration(audio_path) + 0.2) * 30) / 30)
         else:
             command += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
         logo_index = 2
@@ -162,12 +166,13 @@ class FFmpegClient:
             "-filter_complex", filter_arg, "-map", "[v]",
         ]
         # Every clip needs the same audio stream layout for safe concatenation.
-        # Pad short narration and extend the scene when narration is longer.
+        # Reset audio timestamps just like video so source offsets cannot
+        # delay speech relative to this scene's overlay.
         if as_image:
             command += ["-frames:v", "1", "-c:v", "png", "-update", "1"]
         else:
             command += ["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
-                        "-map", "1:a:0", "-af", "apad", "-ar", "48000", "-ac", "2",
+                        "-map", "1:a:0", "-af", "asetpts=PTS-STARTPTS,apad", "-ar", "48000", "-ac", "2",
                         "-c:a", "aac", "-b:a", "192k", "-t", str(max(1, duration)), "-movflags", "+faststart"]
         command += [str(temporary_output)]
         try:
@@ -428,6 +433,11 @@ class FFmpegClient:
 
             "-safe",
             "0",
+
+            # Scenes share dimensions/pixel format, but stock sources can carry
+            # different color metadata. Reinitializing setpts at a join resets
+            # STARTPTS and makes FFmpeg drop the remaining scenes as old frames.
+            "-reinit_filter", "0",
 
             "-i",
             concat_file,

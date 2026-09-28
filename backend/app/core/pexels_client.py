@@ -3,6 +3,7 @@ import requests
 
 from dotenv import load_dotenv
 
+from app.core.visual_download import download_visual
 from app.core.media_selection import best_by_dimensions, best_for_query
 
 load_dotenv()
@@ -251,47 +252,7 @@ class PexelsClient:
         save_path: str,
     ):
 
-        os.makedirs(
-
-            os.path.dirname(save_path),
-
-            exist_ok=True,
-
-        )
-
-        response = requests.get(
-
-            url,
-
-            stream=True,
-
-            timeout=120,
-
-        )
-
-        response.raise_for_status()
-
-        with open(
-            save_path,
-            "wb",
-        ) as file:
-
-            for chunk in response.iter_content(8192):
-
-                if chunk:
-                    file.write(chunk)
-
-        return {
-
-            "file_path": save_path,
-
-            "file_size": os.path.getsize(save_path),
-
-        }
-
-    # ==========================================================
-    # Search & Download
-    # ==========================================================
+        return download_visual(url, save_path)
 
     @classmethod
     def search_and_download(

@@ -315,7 +315,7 @@ class AutomationTests(unittest.TestCase):
             service.prepare_audio(self.db, content, config)
         self.assertEqual(generate.await_count, 2)
         requests = [call.kwargs["request"] for call in generate.await_args_list]
-        self.assertEqual([request.text for request in requests], ["Scene 1 narration", "Scene 2 narration"])
+        self.assertEqual([request.text for request in requests], ["Scene 1 text", "Scene 2 text"])
         self.assertEqual((requests[0].language, requests[0].speed, requests[0].voice), ("Hindi", "-5%", ""))
         self.assertEqual(content.generation_config["audio"], {"voice_enabled": True, "music_id": music.id, "music_volume": 0.12})
         self.assertEqual(content.generation_config["topic"], "Saved topic")

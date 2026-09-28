@@ -194,7 +194,7 @@ Create exactly {scene_count} scenes, numbered consecutively from 1 to {scene_cou
 {sequence_rules}
 Each scene text is visible overlay copy: one or two clear sentences of at most {24 if is_carousel else 12} words.
 For image slides, the visible text alone must convey the complete sequence; do not hide essential details in the caption or script.
-For video, voice_text is the actual spoken narration for that scene, explaining its part of the story in natural complete sentences. Overlay text summarizes that same narration. Aim for approximately two spoken words per second.
+For video, voice_text must exactly equal that scene's text. Read the visible overlay verbatim without extra explanations, introductions or conclusions. Write complete, natural scene text that carries the entire story.
 For image scenes, set voice_text to the same value as text. Set script to all voice_text values joined in scene order, with no extra events or information. Keep script below {script_limit} words.
 Before returning, read the scene sequence alone: does it answer the topic and reach a clear ending? Rewrite it if not.
 Set each scene duration close to {scene_duration} seconds so the complete output is approximately {total_duration} seconds.

@@ -117,7 +117,7 @@ def prepare_audio(db, content, config):
 
     async def narrate():
         for scene in sorted(content.scenes, key=lambda item: item.scene_number):
-            text = (scene.voice_text or scene.text or "").strip()
+            text = (scene.text or "").strip()
             if not text:
                 raise ValueError(f"Scene {scene.scene_number} has no narration text. Review the draft before posting.")
             result = await VoiceService.generate(db=db, user_id=content.user_id, request=VoiceCreate(

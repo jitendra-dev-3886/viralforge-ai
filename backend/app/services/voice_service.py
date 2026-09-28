@@ -133,11 +133,14 @@ class VoiceService:
             # Generate Audio
             # ==================================================
 
+            narration_text = (scene.text or "").strip()
+            if not narration_text:
+                raise ValueError("Add scene text before generating narration.")
             selected_voice, selected_language = VoiceService._voice_for(
-                request.text, request.language, request.voice
+                narration_text, request.language, request.voice
             )
             communicate = edge_tts.Communicate(
-                text=request.text,
+                text=narration_text,
                 voice=selected_voice,
                 rate=request.speed,
                 pitch=request.pitch,
@@ -192,7 +195,7 @@ class VoiceService:
 
                 pitch=request.pitch,
 
-                text=request.text,
+                text=narration_text,
 
                 audio_name=filename,
 
@@ -686,6 +689,12 @@ class VoiceService:
             # ==================================================
             # Remove Old File
             # ==================================================
+
+            scene = db.query(Scene).filter(Scene.id == voice.scene_id, Scene.user_id == user_id).first()
+            if not scene or not (scene.text or "").strip():
+                raise ValueError("Add scene text before regenerating narration.")
+            voice.text = scene.text.strip()
+            selected_voice, selected_language = VoiceService._voice_for(voice.text, voice.language, voice.voice)
 
             if voice.audio_path:
 
