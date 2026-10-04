@@ -110,7 +110,7 @@ class PixabayClient:
         return {
             "provider": "Pixabay",
             "title": image.get("tags", query),
-            "file_url": image.get("largeImageURL") or image.get("webformatURL"),
+            "file_url": image.get("imageURL") or image.get("largeImageURL"),
             "width": image.get("imageWidth", 0),
             "height": image.get("imageHeight", 0),
             "mime_type": "image/jpeg",

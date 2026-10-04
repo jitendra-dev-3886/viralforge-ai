@@ -22,7 +22,11 @@ def public_setting(row):
         metadata = {}
     if not isinstance(metadata, dict):
         metadata = {}
-    return {"provider": row.provider, "model": metadata.get("model", ""), "account_id": metadata.get("account_id", "") if row.provider == "cloudflare" else "", "is_active": row.is_active, "has_key": bool(row.api_key and row.api_key.startswith("enc:v1:"))}
+    fallbacks = metadata.get("fallback_models", [])
+    if not isinstance(fallbacks, list):
+        fallbacks = []
+    fallbacks = list(dict.fromkeys(model for model in fallbacks if isinstance(model, str) and model and model != metadata.get("model")))[:4]
+    return {"provider": row.provider, "model": metadata.get("model", ""), "fallback_models": fallbacks, "account_id": metadata.get("account_id", "") if row.provider == "cloudflare" else "", "is_active": row.is_active, "has_key": bool(row.api_key and row.api_key.startswith("enc:v1:"))}
 
 
 def credentials_for(db, user_id, requested=None):
@@ -40,6 +44,8 @@ def credentials_for(db, user_id, requested=None):
         except InvalidToken:
             raise HTTPException(503, detail="Your saved API key could not be unlocked. Re-enter it in Settings → AI providers.")
         result[row.provider] = {"api_key": key, "model": info["model"]}
+        if info["fallback_models"]:
+            result[row.provider]["fallback_models"] = info["fallback_models"]
         if row.provider == "cloudflare":
             result[row.provider]["account_id"] = info["account_id"]
     if not result or (requested and any(p not in result for p in requested)):

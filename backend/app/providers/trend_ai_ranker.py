@@ -1,9 +1,11 @@
 import json
+import logging
 import re
 
-from fastapi import HTTPException
-from app.core.user_ai_client import generate_user_content
+from app.core.user_ai_client import generate_user_content, ProviderTruncatedResponse
 from app.config.prompt_config import tech_education_direction
+
+logger = logging.getLogger(__name__)
 
 
 class TrendAIRanker:
@@ -31,11 +33,17 @@ Return JSON only: {{"topics":[{{"title":"creator-ready topic", "language":"hi or
 Live source data:
 {json.dumps([{'source_id': index, 'title': item['title']} for index, item in enumerate(trends)], ensure_ascii=False)}
 """
+        errors = []
         for provider, settings in credentials.items():
             try:
-                text, _ = generate_user_content(provider, prompt, settings, max_tokens=2000)
+                # Reasoning models spend output tokens on thinking as well as JSON.
+                try:
+                    text, _ = generate_user_content(provider, prompt, settings, max_tokens=4096)
+                except ProviderTruncatedResponse:
+                    text, _ = generate_user_content(provider, prompt, settings, max_tokens=8192)
                 text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-                rows = json.loads(text).get("topics")
+                data = json.loads(text)
+                rows = data.get("topics") if isinstance(data, dict) else None
                 if not isinstance(rows, list):
                     raise ValueError("Invalid topic response")
                 topics, seen, counts = [], set(), {"hi": 0, "en": 0}
@@ -62,6 +70,18 @@ Live source data:
                 if rows and not topics:
                     raise ValueError("No valid source-backed topics")
                 return sorted(topics, key=lambda topic: topic["language"] != "hi")
-            except Exception:
-                continue
-        raise HTTPException(503, detail="Unable to curate creator topics right now. Check your AI provider settings or try again later.")
+            except Exception as exc:
+                errors.append((provider, exc))
+        from app.services.ai_service import AIService
+
+        failure = AIService._provider_failure(errors)
+        for provider, exc in errors:
+            detail = AIService._provider_failure([(provider, exc)]).detail
+            logger.warning("Topic curation failed: provider=%s code=%s status=%s",
+                           provider, detail["code"], detail.get("provider_status"))
+        for detail in failure.detail.get("providers", [failure.detail]):
+            if detail["code"] in ("ai_invalid_response", "ai_response_truncated"):
+                detail["message"] = "The provider returned incomplete or invalid topic JSON. Retry or choose another configured model."
+        if "providers" in failure.detail:
+            failure.detail["message"] = "Unable to curate creator topics. " + " ".join(item["message"] for item in failure.detail["providers"])
+        raise failure

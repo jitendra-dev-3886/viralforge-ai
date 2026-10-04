@@ -1,5 +1,7 @@
 import requests
 import re
+import json
+import logging
 from urllib.parse import quote
 
 ENDPOINTS = {
@@ -27,6 +29,32 @@ class ProviderAuth(requests.auth.AuthBase):
 
 
 def generate_user_content(provider, prompt, credentials, *, max_tokens=None):
+    """Try the account's saved model order without changing shared settings."""
+    models = list(dict.fromkeys([credentials["model"], *credentials.get("fallback_models", [])]))[:5]
+    for index, model in enumerate(models):
+        try:
+            result = _generate_single_model(provider, prompt, {**credentials, "model": model}, max_tokens=max_tokens)
+            if len(models) > 1:
+                # Invalid JSON is a model failure, not a successful fallback.
+                # Use the same parser as content generation (including fences).
+                from app.services.ai_service import AIService
+                result = (json.dumps(AIService._parse_json_response(result[0]), ensure_ascii=False), result[1])
+            return result
+        except Exception as exc:
+            status = getattr(exc, "status_code", None)
+            logging.getLogger(__name__).warning(
+                "AI model failed: provider=%s model=%s error=%s status=%s",
+                provider, model, type(exc).__name__, status,
+            )
+            # A rejected key or missing billing applies to the provider account.
+            # Only model-specific permission errors should try another model.
+            if (index == len(models) - 1 or status in (401, 402)
+                    or (status == 403 and getattr(exc, "access_reason", None) != "project_model_blocked")
+                    or isinstance(exc, requests.ConnectionError)):
+                raise
+
+
+def _generate_single_model(provider, prompt, credentials, *, max_tokens=None):
     """Request-local credentials only. Never mutate globals or use server keys."""
     key, model = credentials["api_key"], credentials["model"]
     if provider == "gemini":
@@ -88,8 +116,10 @@ def generate_user_content(provider, prompt, credentials, *, max_tokens=None):
         text = "".join(part.get("text", "") for part in candidates[0].get("content", {}).get("parts", []) if not part.get("thought"))
     else:
         choices = data.get("choices") or []
-        if not choices or choices[0].get("finish_reason") == "length":
-            raise ValueError("Provider returned empty or truncated content")
+        if not choices:
+            raise ValueError("Provider returned no choices")
+        if choices[0].get("finish_reason") == "length":
+            raise ProviderTruncatedResponse("Provider exhausted its output token budget")
         text = choices[0].get("message", {}).get("content")
     if not isinstance(text, str) or not text.strip():
         raise ValueError("Provider returned no text")

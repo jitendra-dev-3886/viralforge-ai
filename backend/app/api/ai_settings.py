@@ -1,5 +1,5 @@
 import json
-from typing import Literal
+from typing import Literal, Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.orm import Session
@@ -10,10 +10,12 @@ from app.services.user_ai_settings import settings_for, public_setting, cipher, 
 
 router = APIRouter(prefix="/api/ai-settings", tags=["My AI providers"])
 Provider = Literal["gemini", "groq", "cerebras", "openrouter", "mistral", "cloudflare", "huggingface"]
+ModelID = Annotated[str, Field(min_length=1, max_length=160, pattern=r"^[a-zA-Z0-9_./:@-]+$")]
 
 
 class SettingInput(BaseModel):
     model: str = Field(min_length=1, max_length=160, pattern=r"^[a-zA-Z0-9_./:@-]+$")
+    fallback_models: list[ModelID] = Field(default_factory=list, max_length=4)
     api_key: SecretStr | None = None
     is_active: bool = True
     account_id: str | None = Field(None, pattern=r"^[a-fA-F0-9]{32}$")
@@ -46,7 +48,8 @@ def save_setting(provider: Provider, request: SettingInput, db: Session = Depend
         db.add(row)
     if key:
         row.api_key = "enc:v1:" + cipher().encrypt(key.encode()).decode()
-    row.api_secret = json.dumps({"model": request.model, **({"account_id": account_id} if provider == "cloudflare" else {})})
+    fallbacks = list(dict.fromkeys(model for model in request.fallback_models if model != request.model))
+    row.api_secret = json.dumps({"model": request.model, "fallback_models": fallbacks, **({"account_id": account_id} if provider == "cloudflare" else {})})
     row.is_active = request.is_active
     db.commit()
     return public_setting(row)
@@ -69,4 +72,4 @@ def test_setting(provider: Provider, db: Session = Depends(get_db), user_id: int
         AIService._parse_json_response(text)
     except Exception as error:
         raise AIService._provider_failure([(provider, error)]) from None
-    return {"success": True, "provider": provider, "model": model, "message": "Saved key and model successfully returned JSON. Content generation uses these same credentials."}
+    return {"success": True, "provider": provider, "model": model, "message": f"{provider}: {model} successfully returned JSON. Generation uses the same saved model order."}

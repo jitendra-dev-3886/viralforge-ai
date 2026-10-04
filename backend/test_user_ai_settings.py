@@ -21,6 +21,22 @@ from app.schemas.ai import GenerateRequest
 
 
 class UserAiTests(unittest.TestCase):
+    def test_model_fallbacks_saved_deduplicated_and_loaded(self):
+        response = self.client.put("/api/ai-settings/groq", json={
+            "api_key": "private-key", "model": "primary", "fallback_models": ["second", "primary", "second", "third"],
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["fallback_models"], ["second", "third"])
+        self.assertEqual(credentials_for(self.db, 1)["groq"]["fallback_models"], ["second", "third"])
+        self.assertNotIn("private-key", self.client.get("/api/ai-settings/").text)
+        self.user = 2
+        self.assertEqual(self.client.get("/api/ai-settings/").json()["providers"], [])
+
+    def test_rejects_invalid_or_excessive_model_fallbacks(self):
+        for models in (["bad model"], ["x" * 161], ["a", "b", "c", "d", "e"]):
+            response = self.client.put("/api/ai-settings/groq", json={"api_key": "private-key", "model": "primary", "fallback_models": models})
+            self.assertEqual(response.status_code, 422)
+
     def setUp(self):
         engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(engine)

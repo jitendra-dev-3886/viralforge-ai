@@ -1,4 +1,4 @@
-from app.core.visual_download import VisualSizeLimitError
+from app.core.visual_download import VisualSizeLimitError, VisualResolutionError
 import os
 import re
 
@@ -286,6 +286,11 @@ class DownloaderService:
                         orientation=orientation if query == search_keyword else None,
                         **({"excluded_urls": excluded_urls} if excluded_urls else {}),
                     )
+                except VisualResolutionError:
+                    message = "Provider returned a photo below 1080p. Try another search or upload a high-resolution visual."
+                    if message not in provider_errors:
+                        provider_errors.append(message)
+                    continue
                 except VisualSizeLimitError:
                     message = "Images and video clips must be 10 MB or smaller. Try another search."
                     if message not in provider_errors:
@@ -323,7 +328,7 @@ class DownloaderService:
 
                 status_code=404,
 
-                detail="No relevant media found after topic, niche, and project searches. Refine the search phrase or upload a visual.",
+                detail="No relevant media at 1080p or higher found after topic, niche, and project searches. Refine the search phrase or upload a high-resolution visual.",
 
             )
 

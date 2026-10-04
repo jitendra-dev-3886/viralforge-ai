@@ -150,7 +150,7 @@ class PexelsClient:
                 query,
             ),
 
-            "file_url": photo["src"]["large2x"],
+            "file_url": photo["src"].get("original") or photo["src"]["large2x"],
 
             "width": photo.get("width", 0),
 

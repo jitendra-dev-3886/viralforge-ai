@@ -22,6 +22,8 @@ export default function AIProviders() {
   const [items, setItems] = useState([]);
   const [provider, setProvider] = useState("gemini");
   const [model, setModel] = useState("");
+  const [fallbackModels, setFallbackModels] = useState("");
+  const modelFallbacks = [...new Set(fallbackModels.split(/[\n,]+/).map(value => value.trim()).filter(value => value && value !== model.trim()))];
   const [accountId, setAccountId] = useState("");
   const [key, setKey] = useState("");
   const [active, setActive] = useState(true);
@@ -42,6 +44,7 @@ export default function AIProviders() {
             (item) => item.provider === "gemini",
           );
           setModel(initial?.model || "");
+          setFallbackModels((initial?.fallback_models || []).join("\n"));
           setActive(initial?.is_active ?? true);
         }
       })
@@ -60,6 +63,7 @@ export default function AIProviders() {
     setProvider(value);
     setAccountId(saved?.account_id || "");
     setModel(saved?.model || "");
+    setFallbackModels((saved?.fallback_models || []).join("\n"));
     setActive(saved?.is_active ?? true);
     setKey("");
     setMessage("");
@@ -67,11 +71,16 @@ export default function AIProviders() {
   const saved = items.find((item) => item.provider === provider);
   const save = async (event) => {
     event.preventDefault();
+    if (modelFallbacks.length > 4) {
+      setMessage("Add at most four fallback models.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
       await api.put(`/ai-settings/${provider}`, {
         model: model.trim(),
+        fallback_models: modelFallbacks,
         ...(provider === "cloudflare" ? { account_id: accountId.trim() } : {}),
         ...(key.trim() ? { api_key: key.trim() } : {}),
         is_active: active,
@@ -79,7 +88,7 @@ export default function AIProviders() {
       setKey("");
       await refresh();
       setMessage(
-        "Saved securely. Generation will use your key and selected model. Saving does not verify provider access.",
+        "Saved securely. Generation tries your primary model, then your fallback models in order. Saving does not verify provider access.",
       );
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -99,6 +108,7 @@ export default function AIProviders() {
       await api.delete(`/ai-settings/${provider}`);
       setKey("");
       setModel("");
+      setFallbackModels("");
       await refresh();
       setMessage("Provider removed from your account.");
     } catch {
@@ -109,7 +119,7 @@ export default function AIProviders() {
   };
   const testProvider = async () => {
     setBusy(true);
-    setMessage("Testing saved key and model...");
+    setMessage("Testing saved models in order until one succeeds...");
     try {
       const { data } = await api.post(`/ai-settings/${provider}/test`);
       setMessage(data.message);
@@ -166,6 +176,17 @@ export default function AIProviders() {
       )}
       <form onSubmit={save}>
         <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm sm:col-span-2">
+            Fallback model IDs (optional, up to four)
+            <textarea
+              value={fallbackModels}
+              onChange={(e) => setFallbackModels(e.target.value)}
+              rows={3}
+              placeholder="One model ID per line, in preferred order"
+              className="mt-1 w-full rounded-xl border p-3"
+            />
+            <span className="text-xs text-slate-500">Uses this provider's key. Shared quota and billing limits still apply. Add only models available to your account.</span>
+          </label>
           <label className="text-sm">
             Model ID
             <input
@@ -242,6 +263,7 @@ export default function AIProviders() {
               disabled={
                 Boolean(key.trim()) ||
                 model.trim() !== saved.model ||
+                JSON.stringify(modelFallbacks) !== JSON.stringify(saved.fallback_models || []) ||
                 active !== saved.is_active ||
                 !saved.is_active ||
                 (provider === "cloudflare" &&
@@ -257,7 +279,7 @@ export default function AIProviders() {
       </form>
       <p className="text-xs text-slate-500">
         Save changes before testing. The test sends a small JSON request using
-        this provider's saved key and model and may use provider credits. Each
+        this provider's saved key and model order and may use provider credits. Each
         provider needs its own API key.
       </p>
       {message && (

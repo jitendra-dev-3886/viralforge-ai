@@ -116,11 +116,11 @@ const menus = [
         path: "/analytics",
     },
 
-    // {
-    //     name: "Export",
-    //     icon: FileOutput,
-    //     path: "/export",
-    // },
+    {
+        name: "Export",
+        icon: FileOutput,
+        path: "/export",
+    },
 
     {
         name: "Settings",

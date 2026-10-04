@@ -1,6 +1,24 @@
 import re
+import json
+import logging
 from time import monotonic
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+def youtube_error_summary(exc):
+    # HttpError text includes the request URL and API key. Log only known codes.
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    reason = "unknown"
+    try:
+        errors = json.loads(exc.content).get("error", {}).get("errors", [])
+        known = {"quotaExceeded", "dailyLimitExceeded", "keyInvalid", "accessNotConfigured",
+                 "ipRefererBlocked", "forbidden", "rateLimitExceeded"}
+        reason = next((item.get("reason") for item in errors if item.get("reason") in known), "unknown")
+    except (AttributeError, ValueError, TypeError):
+        pass
+    return status, reason
 
 class TrendService:
     """Return up to five live topics per language for any selected niche."""
@@ -45,7 +63,9 @@ class TrendService:
                 if source_titles and "YouTube" not in sources:
                     sources.append("YouTube")
             except Exception as exc:
-                print(f"YouTube trends unavailable: {type(exc).__name__}")
+                status, reason = youtube_error_summary(exc)
+                logger.warning("YouTube trends unavailable: error=%s status=%s reason=%s; trying other sources",
+                               type(exc).__name__, status, reason)
 
             # NewsAPI supports English, but does not support Hindi.
             if language == "en":

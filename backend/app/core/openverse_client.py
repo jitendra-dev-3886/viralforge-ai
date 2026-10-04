@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
-from app.core.visual_download import MAX_VISUAL_BYTES, VisualSizeLimitError, limited_chunks
+from app.core.visual_download import MAX_VISUAL_BYTES, VisualSizeLimitError, VisualResolutionError, limited_chunks
 from app.core.media_selection import best_for_query
 
 load_dotenv()
@@ -61,6 +61,8 @@ class OpenverseClient:
                 photo = ImageOps.exif_transpose(source).convert("RGB")
                 photo.thumbnail((4096, 4096))
                 width, height = photo.size
+                if min(width, height) < 1080:
+                    raise VisualResolutionError()
                 photo.save(partial, format="JPEG", quality=92)
             if os.path.getsize(partial) > MAX_VISUAL_BYTES:
                 raise VisualSizeLimitError()

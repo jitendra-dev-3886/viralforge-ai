@@ -18,7 +18,7 @@ class ExtraStockTests(unittest.TestCase):
                 "duration": 5, "urls": {"mp4_download": "https://storage.coverr.co/videos/abc/download?token=test"}}
 
     def photo(self):
-        return {"id": "abc", "title": "Computer programming", "width": 1200, "height": 900,
+        return {"id": "abc", "title": "Computer programming", "width": 1920, "height": 1080,
                 "license": "cc0", "tags": [], "url": "https://cdn.stocksnap.io/img/abc.jpg"}
 
     def download_response(self, data, mime):
@@ -48,7 +48,7 @@ class ExtraStockTests(unittest.TestCase):
 
     def test_openverse_converts_image_and_filters_license(self):
         data = io.BytesIO()
-        Image.new("RGB", (1200, 900)).save(data, "PNG")
+        Image.new("RGB", (1920, 1080)).save(data, "PNG")
         search = MagicMock()
         search.json.return_value = {"results": [self.photo()]}
         with tempfile.TemporaryDirectory() as folder, patch.object(OpenverseClient, "ENABLED", True), \

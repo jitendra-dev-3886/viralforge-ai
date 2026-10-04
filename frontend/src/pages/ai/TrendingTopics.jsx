@@ -12,6 +12,7 @@ export default function TrendingTopics({ niche, projectId, platform, contentType
 
     useEffect(() => {
         let cancelled = false;
+        const controller = new AbortController();
 
         const fetchTrending = async () => {
             if (!niche) {
@@ -24,7 +25,7 @@ export default function TrendingTopics({ niche, projectId, platform, contentType
             setError("");
 
             try {
-                const data = await getTrending(niche, 10, { project_id: projectId || undefined, platform, content_type: contentType });
+                const data = await getTrending(niche, 10, { project_id: projectId || undefined, platform, content_type: contentType }, controller.signal);
                 const topics = Array.isArray(data) ? data : data?.trends || [];
                 const relevantTopics = topics
                     .map((item) => (
@@ -39,6 +40,7 @@ export default function TrendingTopics({ niche, projectId, platform, contentType
                     setTopicMeta(data && !Array.isArray(data) ? data : null);
                 }
             } catch (err) {
+                if (cancelled || controller.signal.aborted) return;
                 console.error("Trending fetch failed", err);
                 if (!cancelled) {
                     const detail = err.response?.data?.detail;
@@ -53,10 +55,13 @@ export default function TrendingTopics({ niche, projectId, platform, contentType
             }
         };
 
-        fetchTrending();
+        // Let dependent project/niche updates settle before consuming provider quota.
+        const timer = setTimeout(fetchTrending, 300);
 
         return () => {
             cancelled = true;
+            clearTimeout(timer);
+            controller.abort();
         };
     }, [niche, projectId, platform, contentType]);
 

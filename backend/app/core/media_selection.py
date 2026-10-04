@@ -81,6 +81,10 @@ def dimension_score(
     height = float(height or 0)
     if width <= 0 or height <= 0:
         return float("-inf")
+    # Reject small sources before aspect-ratio ranking: a perfectly shaped
+    # 720p preview must never beat a Full HD source.
+    if min(width, height) < 1080 or (media_type == "video" and max(width, height) < 1920):
+        return float("-inf")
 
     aspect = width / height
     desired = target_aspect_ratio(media_type, orientation)
@@ -100,7 +104,7 @@ def best_by_dimensions(
     if not candidates:
         return None
 
-    return max(
+    best = max(
         candidates,
         key=lambda item: dimension_score(
             *dimensions(item),
@@ -108,3 +112,6 @@ def best_by_dimensions(
             orientation=orientation,
         ),
     )
+    return best if math.isfinite(dimension_score(
+        *dimensions(best), media_type=media_type, orientation=orientation,
+    )) else None

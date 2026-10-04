@@ -2,9 +2,15 @@
 import os
 
 import requests
+from PIL import Image
 
 
 MAX_VISUAL_BYTES = 10_000_000
+
+
+class VisualResolutionError(ValueError):
+    def __init__(self):
+        super().__init__("Visual must have at least 1080 pixels on its shorter side")
 
 
 class VisualSizeLimitError(ValueError):
@@ -37,8 +43,14 @@ def download_visual(url, save_path):
             with open(partial, "wb") as output:
                 for chunk in limited_chunks(response):
                     output.write(chunk)
+        dimensions = {}
+        if str(save_path).lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            with Image.open(partial) as photo:
+                if min(photo.size) < 1080:
+                    raise VisualResolutionError()
+                dimensions = {"width": photo.width, "height": photo.height}
         os.replace(partial, save_path)
     finally:
         if os.path.exists(partial):
             os.remove(partial)
-    return {"file_path": save_path, "file_size": os.path.getsize(save_path)}
+    return {"file_path": save_path, "file_size": os.path.getsize(save_path), **dimensions}
