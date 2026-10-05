@@ -5,7 +5,7 @@ import requests
 from PIL import Image
 
 
-MAX_VISUAL_BYTES = 10_000_000
+MAX_VISUAL_BYTES = 1_000_000_000
 
 
 class VisualResolutionError(ValueError):
@@ -15,7 +15,7 @@ class VisualResolutionError(ValueError):
 
 class VisualSizeLimitError(ValueError):
     def __init__(self):
-        super().__init__("Visual exceeds the 10 MB per-file limit")
+        super().__init__("Visual exceeds the 1 GB per-file limit")
 
 
 def limited_chunks(response):

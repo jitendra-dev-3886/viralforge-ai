@@ -292,7 +292,7 @@ class DownloaderService:
                         provider_errors.append(message)
                     continue
                 except VisualSizeLimitError:
-                    message = "Images and video clips must be 10 MB or smaller. Try another search."
+                    message = "Images and video clips must be 1 GB or smaller. Try another search."
                     if message not in provider_errors:
                         provider_errors.append(message)
                     continue
