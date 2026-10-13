@@ -29,30 +29,57 @@ from PIL import Image, ImageDraw, ImageFont, features
 from app.core.visual_style import get_style
 
 
+
 def caption_font(text, family="sans"):
     hindi = bool(re.search(r"[\u0900-\u097f]", text))
+
+    configured_font = os.environ.get("OVERLAY_FONT_PATH", "").strip()
+
     candidates = [
-        os.environ.get("OVERLAY_FONT_PATH", ""),
+        configured_font,
+        "C:/Windows/Fonts/Nirmala.ttc",
         "C:/Windows/Fonts/NirmalaB.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
     ]
+
     if not hindi:
         families = {
-            "serif": ["C:/Windows/Fonts/georgia.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"],
-            "mono": ["C:/Windows/Fonts/consola.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"],
-            "condensed": ["C:/Windows/Fonts/impact.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"],
-            "rounded": ["C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
-            "sans": ["C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
+            "serif": [
+                "C:/Windows/Fonts/georgia.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+            ],
+            "mono": [
+                "C:/Windows/Fonts/consola.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            ],
+            "condensed": [
+                "C:/Windows/Fonts/impact.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
+            ],
+            "rounded": [
+                "C:/Windows/Fonts/arialbd.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ],
+            "sans": [
+                "C:/Windows/Fonts/arialbd.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ],
         }
         candidates[1:1] = families.get(family, families["sans"])
-    if not hindi:
-        candidates += ["C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+        candidates.extend([
+            "C:/Windows/Fonts/arialbd.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ])
+
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
-            return candidate
-    raise RuntimeError("Install a Devanagari font (Nirmala UI or Noto Sans Devanagari), or set OVERLAY_FONT_PATH to a compatible font file.")
+            return str(candidate)
 
+    raise RuntimeError(
+        "No compatible font found. Set OVERLAY_FONT_PATH "
+        "to a valid Devanagari font file."
+    )
 
 def wrap_words(text, font, max_width):
     """Never split a word: Hindi marks and conjuncts stay with their base letters."""
