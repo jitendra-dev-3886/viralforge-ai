@@ -59,22 +59,59 @@ def authorize(provider: str, ticket: str):
     return response
 
 
+
 @router.get("/{provider}/callback")
-def callback(provider: str, request: Request, code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)):
+def callback(
+    provider: str,
+    request: Request,
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
     result = "failed"
+
     try:
-        user_id = PublishingAccounts.consume_state(db, provider, state, request.cookies.get(f"publishing_{provider}"))
+        user_id = PublishingAccounts.consume_state(
+            db,
+            provider,
+            state,
+            request.cookies.get(f"publishing_{provider}"),
+        )
+
         if error:
             result = "cancelled"
         elif code:
             PublishingAccounts.complete(db, user_id, provider, code)
             result = "connected"
-    except (HTTPException, ProviderError, KeyError, ValueError):
+
+    except (HTTPException, ProviderError, KeyError, ValueError) as exc:
         db.rollback()
-    frontend = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-    response = RedirectResponse(f"{frontend}/settings?social={result}#social-accounts", status_code=303)
-    response.delete_cookie(f"publishing_{provider}", path=f"/api/social-connections/{provider}/callback")
+        print(
+            f"YouTube OAuth callback failed: "
+            f"{type(exc).__name__}: {exc}"
+        )
+    except Exception as exc:
+        db.rollback()
+        print(
+            f"YouTube OAuth callback unexpected error: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+    frontend = os.getenv(
+        "FRONTEND_URL", "http://localhost:5173"
+    ).rstrip("/")
+
+    response = RedirectResponse(
+        f"{frontend}/settings?social={result}#social-accounts",
+        status_code=303,
+    )
+    response.delete_cookie(
+        f"publishing_{provider}",
+        path=f"/api/social-connections/{provider}/callback",
+    )
     return response
+
 
 
 @router.delete("/{account_id:int}")

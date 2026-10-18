@@ -97,15 +97,15 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr
+              {visible.map((row, rowIndex) => (              
+                <tr
                 key={row[rowKey]}
                 className="border-b last:border-0 hover:bg-slate-50"
               >
                 {columns.map((column) => (
                   <td key={column.key} className="p-3 align-top">
                     {column.render
-                      ? column.render(row)
+                      ? column.render(row, (current - 1) * size + rowIndex)
                       : (row[column.key] ?? "—")}
                   </td>
                 ))}
