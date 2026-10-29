@@ -236,6 +236,19 @@ export default function AutoMode() {
   const selectedMusic = music.find(
     (track) => track.id === Number(form.music_id),
   );
+  const getScheduleSearchValue = (rule) =>
+  [
+    rule.content_type,
+    rule.platform,
+    rule.niche,
+    ...(rule.days || []).map((day) => weekdays[day]),
+    rule.time,
+    rule.timezone,
+  ]
+    .filter((value) => value != null && value !== "")
+    .join(" ")
+    .toLowerCase();
+
   return (
     <div className="space-y-6 p-1 sm:p-4 lg:p-8">
       <header>
@@ -771,6 +784,7 @@ export default function AutoMode() {
             Create a schedule for each format and time you want.
           </p>
         )}
+        
 
         <DataTable
           columns={[
@@ -783,26 +797,28 @@ export default function AutoMode() {
                 },
 
             {
-              key: "content_type",
-              label: "Format",
-            },
-            {
-              key: "platform",
-              label: "Platform",
-            },
-            {
-              key: "niche",
-              label: "Niche",
-            },
-            {
-              key: "time",
-              label: "Schedule",
-              sortable: false,
-              render: (rule) =>
-                `${rule.days.map((day) => weekdays[day]).join(", ")} at ${rule.time}`,
-              searchValue: (rule) =>
-                `${rule.days.map((day) => weekdays[day]).join(" ")} ${rule.time} ${rule.timezone}`,
-            },
+  key: "content_type",
+  label: "Format",
+  searchValue: getScheduleSearchValue,
+},
+{
+  key: "platform",
+  label: "Platform",
+  searchValue: getScheduleSearchValue,
+},
+{
+  key: "niche",
+  label: "Niche",
+  searchValue: getScheduleSearchValue,
+},
+{
+  key: "time",
+  label: "Schedule",
+  sortable: false,
+  render: (rule) =>
+    `${(rule.days || []).map((day) => weekdays[day]).join(", ")} at ${rule.time}`,
+  searchValue: getScheduleSearchValue,
+},
             {
               key: "enabled",
               label: "Status",
