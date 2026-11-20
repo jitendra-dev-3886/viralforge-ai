@@ -131,39 +131,60 @@ def prepare_audio(db, content, config):
     asyncio.run(narrate())
 
 
-def claim_run(db, rule_id, at):
+def claim_run(db, rule_id, at, grace_minutes=30):
+    now = utc(at)
     rule = db.get(AutomationRule, rule_id)
     if not rule or not rule.enabled:
         return None
+
     config = AutomationConfig(**rule.config)
     scheduled = utc(rule.next_run_at)
-    if scheduled - timedelta(minutes=config.lead_minutes) > at:
+
+    # Too early to claim
+    if scheduled - timedelta(minutes=config.lead_minutes) > now:
         return None
-    following = next_occurrence(config, max(at, scheduled))
-    # Advance the cursor and reserve the occurrence in one transaction. The
-    # unique active_user also serializes a user's different rules across workers.
-    changed = db.query(AutomationRule).filter_by(id=rule.id, enabled=True, next_run_at=rule.next_run_at).update(
-        {"next_run_at": following}, synchronize_session=False
+
+    # Past the late-execution grace window: skip and jump past `now`
+    too_late = now > scheduled + timedelta(minutes=grace_minutes)
+    cursor_anchor = now if too_late else scheduled
+    following = next_occurrence(config, cursor_anchor)
+
+    changed = (
+        db.query(AutomationRule)
+        .filter_by(id=rule.id, enabled=True, next_run_at=rule.next_run_at)
+        .update({"next_run_at": following}, synchronize_session=False)
     )
     if changed != 1:
         db.rollback()
         return None
-    missed = scheduled <= at
-    run = AutomationRun(rule_id=rule.id, user_id=rule.user_id, scheduled_at=scheduled, started_at=at,
-                        status="skipped" if missed else "generating", active_user=None if missed else rule.user_id,
-                        error_message="Missed posting time; skipped to avoid a backlog of late posts." if missed else None)
+
+    run = AutomationRun(
+        rule_id=rule.id,
+        user_id=rule.user_id,
+        scheduled_at=scheduled,
+        started_at=now,
+        status="skipped" if too_late else "generating",
+        active_user=None if too_late else rule.user_id,
+        error_message=(
+            f"Exceeded {grace_minutes}m grace window; skipped to avoid backlog."
+            if too_late
+            else None
+        ),
+    )
     db.add(run)
+
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        # An edited lead time can select an occurrence already prepared. Move
-        # past that occurrence, but leave a busy user's unclaimed slot intact.
         if db.query(AutomationRun.id).filter_by(rule_id=rule_id, scheduled_at=scheduled).first():
-            db.query(AutomationRule).filter_by(id=rule_id, next_run_at=scheduled).update({"next_run_at": following})
+            db.query(AutomationRule).filter_by(id=rule_id, next_run_at=scheduled).update(
+                {"next_run_at": following}
+            )
             db.commit()
         return None
-    return None if missed else run.id
+
+    return None if too_late else run.id
 
 
 def check_repetition(content, previous):
